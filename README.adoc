@@ -1,0 +1,14 @@
+= Invoicing Service
+
+https://travis-ci.org/restorecommerce/invoicing-srv?branch=master[image:https://img.shields.io/travis/restorecommerce/invoicing-srv/master.svg?style=flat-square[Build Status]]
+https://david-dm.org/restorecommerce/invoicing-srv[image:https://img.shields.io/david/restorecommerce/invoicing-srv.svg?style=flat-square[Dependencies]]
+https://coveralls.io/github/restorecommerce/invoicing-srv?branch=master[image:https://img.shields.io/coveralls/restorecommerce/invoicing-srv/master.svg?style=flat-square[Coverage Status]]
+
+A microservice for generating invoices.
+
+Please consult the documentation for using it:
+
+- *link:https://docs.restorecommerce.io/invoicing-srv/index.html[Usage]*
+- *link:https://docs.restorecommerce.io/architecture/index.html[General Architecture]*
+
+Part of link:https://github.com/restorecommerce[Restorecommerce].

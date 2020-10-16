@@ -1,0 +1,79 @@
+{
+  "logger": {
+    "elasticsearch": {
+      "level": "info",
+      "clientOpts": {
+        "node": "http://elasticsearch:9200"
+      },
+      "source": "invoicing-srv"
+    }
+  },
+  "elastic-search": {
+    "client": {
+      "node": "http://elasticsearch:9200",
+      "log": [
+        "info",
+        "error"
+      ]
+    }
+  },
+  "database": {
+    "main": {
+      "host": "arangodb"
+    }
+  },
+  "redis": {
+    "host": "redis"
+  },
+  "events": {
+    "kafka": {
+      "kafkaHost": "kafka:9092"
+    }
+  },
+  "hbs_templates": {
+    "prefix": "http://xingular-console:8080/"
+  },
+  "client": {
+    "services": {
+      "ostorage": {
+        "publisher": {
+          "name": "static",
+          "instances": [
+            "grpc://ostorage-srv:50051"
+          ]
+        }
+      }
+    }
+  },
+  "pdf-rendering": {
+    "url": "http://pdf-rendering-srv:9000/api/render",
+    "options": {
+      "pdf": {
+        "footerTemplateURL": "http://xingular-console:8080/invoicing-srv/templates/footer_template.html",
+        "headerTemplateURL": "http://xingular-console:8080/invoicing-srv/templates/header_template.html"
+      }
+    }
+  },
+  "server": {
+    "transports": [
+      {
+        "name": "grpcBilling",
+        "provider": "grpc",
+        "services": {
+          "io-restorecommerce-invoicing-cis": "io.restorecommerce.commandinterface.Service",
+          "io-restorecommerce-invoicing-srv": "io.restorecommerce.invoice.Service",
+          "io-restorecommerce-invoicing-reflection": "grpc.reflection.v1alpha.ServerReflection",
+          "grpc-health-v1": "grpc.health.v1.Health"
+        },
+        "protos": [
+          "io/restorecommerce/commandinterface.proto",
+          "io/restorecommerce/invoice.proto",
+          "grpc/reflection/v1alpha/reflection.proto",
+          "grpc/health/v1/health.proto"
+        ],
+        "protoRoot": "node_modules/@restorecommerce/protos/",
+        "addr": "0.0.0.0:50051"
+      }
+    ]
+  }
+}

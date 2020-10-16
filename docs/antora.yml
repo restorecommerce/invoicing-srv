@@ -1,0 +1,5 @@
+name: invoicing-srv
+title: Invoicing Service
+version: master
+nav:
+  - modules/ROOT/nav.adoc

@@ -1,0 +1,230 @@
+= Invoicing Service
+
+https://travis-ci.org/restorecommerce/invoicing-srv?branch=master[image:https://img.shields.io/travis/restorecommerce/invoicing-srv/master.svg?style=flat-square[Build Status]]
+https://david-dm.org/restorecommerce/invoicing-srv[image:https://img.shields.io/david/restorecommerce/invoicing-srv.svg?style=flat-square[Dependencies]]
+https://coveralls.io/github/restorecommerce/invoicing-srv?branch=master[image:https://img.shields.io/coveralls/restorecommerce/invoicing-srv/master.svg?style=flat-square[Coverage Status]]
+
+A microservice for generating invoices.
+
+[#features]
+== Features
+
+* Generates invoices for customers based on their purchased products.
+* When all data is aggregated, it is rendered into HTML through the
+https://github.com/restorecommerce/rendering-srv[rendering-srv] and to PDF using the
+https://github.com/restorecommerce/pdf-rendering-srv[pdf-rendering-srv].
+* The header and footer templates for PDF rendering are served via HTML files.
+* All invoices are sent via notification objects to the
+https://github.com/restorecommerce/notification-srv[notification-srv]
+so that they can be sent via email to the customers' billing addresses.
+
+* The Invoice Positions sent to this service are stored on redis (db index 7)
+and Invoice creation is triggered by `io.restorecommerce.invoice.TriggerInvoices`
+event named `triggerInvoices` which sends out the notifications to customers.
+Invoices are also a resource owned by this microservice. After an invoice is generated,
+it is stored in the database along with useful metadata. Therefore, some CRUD operations
+are exposed via gRPC in order to remotely handle this resource.
+
+[#configuration]
+== Configuration
+
+The following service specific configuration properties are available:
+
+* PDF https://github.com/restorecommerce/invoicing-srv/blob/master/cfg/config.json#L290[rendering options].
+
+[#API]
+== API
+
+This microservice exposes the following gRPC endpoints:
+
+[#api_invoice]
+=== Invoice
+
+An Invoice resource.
+
+`io.restorecommerce.invoice.Invoice`
+
+|===
+|Field |Type |Label |Description
+
+|id |string |required |User ID, unique, key
+|created |double |required |Date when user was created
+|modified |double |required |Date when user was modified
+|timestamp |string |required |Invoice creation timestamp
+|customer_id |string |required |The customer's database ID
+|payment_status |string |required |Default: 'unpaid'
+|amount |double |required |Invoice subtotal (gross).
+|document |string |required |Generated PDF base64-encoded
+|invoice_number |string |required |Generated invoice number
+|customer_remark |string |optional |Customer's remark
+|===
+
+The service exposes `Read` and `Delete` operations through gRPC.
+To further read about their interface please refer to https://github.com/restorecommerce/resource-srv[resource-srv].
+
+`io.restorecommerce.invoice.InvoicesPositionsData`:
+
+|===
+|Field |Type |Label |Description
+
+|invoices_positions_data |`io.restorecommerce.invoice.InvoicePositions` [ ] |required |Invoice Positions Data
+|===
+
+`io.restorecommerce.invoice.InvoicePositions`:
+
+|===
+|Field |Type |Label |Description
+
+|id |string |required |contract or customer identifier
+|invoice_positions |`io.restorecommerce.invoice.InvoicePosition` [ ] |required |Invoice Position
+|recipient_customer |`io.restorecommerce.invoice.RecipientCustomer` |required |Recipient customer identifier
+|recipient_billing_address |`io.restorecommerce.invoice.BillingAddress` |required |Recipient Billing Address
+|sender_billing_address |`io.restorecommerce.invoice.BillingAddress` |required |Sender Billing Address
+|recipient_organization |`io.restorecommerce.organization.Organization` |optional |Recipient Organization Address
+|sender_organization |`io.restorecommerce.organization.Organization` |required |Sender Organization Address
+|payment_method_details |`io.restorecommerce.invoice.PaymentMethodDetails` |optional |Payment Method Details
+|===
+
+`io.restorecommerce.invoice.InvoicePosition`:
+
+|===
+|Field |Type |Label |Description
+
+|currency |string |required |currency
+|tableList |`io.restorecommerce.invoice.InvoiceRow` [ ] |required |Invoice row data
+|totalPrice |`io.restorecommerce.invoice.InvoicePrice` |required |Total price
+|===
+
+`io.restorecommerce.invoice.InvoiceRow`:
+
+|===
+|Field |Type |Label |Description
+
+|product |string |required |currency
+|pricePerUnit |double |required |price per unit
+|quantity |integer |required |number of products
+|vat |string |required |value added tax
+|amount |double |required |total amount
+|===
+
+`io.restorecommerce.invoice.InvoicePrice`:
+
+|===
+|Field |Type |Label |Description
+
+|gross |integer |required |gross price
+|net |integer |required |net price
+|===
+
+`io.restorecommerce.invoice.RecipientCustomer`:
+
+|===
+|Field |Type |Label |Description
+
+|id |string |required |customer identifier
+|customer_number |string |optional |customer number
+|===
+
+`io.restorecommerce.invoice.BillingAddress`:
+
+|===
+|Field |Type |Label |Description
+
+|email |string |required |sender or recipient email
+|website |string |optional |sender or recipient website
+|street |string |required |sender or recipient street name
+|building_number |string |required |sender or recipient building number
+|postcode |string |required |sender or recipient postcode
+|region |string |required |sender or recipient region
+|country_name |string |required |sender or recipient country
+|phone_country_code |integer |optional |sender or recipient phone country code
+|phone_number |integer |optional |sender or recipient phone number
+|timezone |string |optional |sender or recipient time zone
+|economic_area |string |required |sender or recipient country economic area
+|===
+
+`io.restorecommerce.invoice.PaymentMethodDetails`:
+
+|===
+|Field |Type |Label |Description
+
+|type |string |required |Payment Method identifier
+|iban |string |optional |Payment Method iban
+|bic |string |optional |Payment Method bic
+|bankName |string |optional |Payment Method bank name
+|transferType |string |optional |Payment Method transfer type
+|eMail |string |optional |Payment Method email
+|===
+
+[#api_invoice_crud]
+==== CRUD Operations
+
+The microservice exposes the below CRUD operations for creating or modifying Invoice resources.
+
+`io.restorecommerce.invoice.Service`
+
+[width="100%",cols="23%,25%,27%,25%",options="header",]
+|=========================================================================================================================
+|Method Name |Request Type |Response Type |Description
+|Create |`io.restorecommerce.invoice.InvoiceList` |`io.restorecommerce.invoice.InvoiceList` |Create a list of Invoice resources
+|Read |`io.restorecommerce.resourcebase.ReadRequest` |`io.restorecommerce.invoice.InvoiceList` |Read a list of Invoice resources
+|Update |`io.restorecommerce.invoice.InvoiceList` |`io.restorecommerce.invoice.InvoiceList` |Update a list of Invoice resources
+|Delete |`io.restorecommerce.resourcebase.DeleteRequest` |Empty |Delete a list of Invoice resources
+|Upsert |`io.restorecommerce.invoice.InvoiceList` |`io.restorecommerce.invoice.InvoiceList` |Create or Update a list of Invoice resources
+|=========================================================================================================================
+
+For the detailed protobuf message structure of `io.restorecommerce.resourcebase.ReadRequest` and
+`io.restorecommerce.resourcebase.DeleteRequest` refer https://github.com/restorecommerce/resource-base-interface[resource-base-interface].
+
+[#events]
+== Events
+
+[#emitted-events]
+=== Emitted
+
+List of events emitted by this microservice for below topics:
+
+[width="100%",cols="31%,33%,36%",options="header",]
+|==========================================================================================
+|Topic Name |Event Name |Description
+|`io.restorecommerce.notification` |`sendEmail` |send generated notifications
+|`io.restorecommerce.rendering` |`renderRequest` |request notifications content rendering
+|`io.restorecommerce.jobs` |`jobDone` |commit job failure or completion
+|`io.restorecommerce.invoices.resource` |`triggerInvoices` |trigger invoices
+|==========================================================================================
+
+
+[#consumed-events]
+=== Consumed
+
+This microservice consumes messages for the following events by topic:
+
+[width="100%",cols="31%,33%,36%",options="header",]
+|==========================================================================================
+|Topic Name |Event Name |Description
+|`io.restorecommerce.invoices.resource` |`storeInvoicePositions` |storing invoice positions and triggering invoices
+|`io.restorecommerce.command` |`restoreCommand` |for triggering system restore
+| |`resetCommand` |for triggering system reset
+| |`healthCheckCommand` |to get system health check
+| |`versionCommand` |to get system version
+|`io.restorecommerce.rendering` |`renderResponse` |receive rendered notifications content
+|`io.restorecommerce.organizations.resource` |`deleteOrgData` |for deleting organization data
+|==========================================================================================
+
+[#custom_commands]
+=== Custom Commands
+
+This service extends the
+https://github.com/restorecommerce/chassis-srv/blob/master/command-interface.md[command-interface]
+in order to provide custom functionality:
+
+- `restore` - the base restore operation is extended to additionally restore the invoice number's incremental counter in Redis
+- `reset` - the base reset operation is overridden in order to reset the invoice's number incremental counter in Redis
+
+[#todo]
+== TODO: Resource Caching with Redis
+* Resources are loaded via gRPC calls.
+Currently, they are stored in local variables which are then statically accessed.
+An efficient caching mechanism using Redis with some expiration time is to be used.
+
+Part of the link:https://github.com/restorecommerce[Restorecommerce].

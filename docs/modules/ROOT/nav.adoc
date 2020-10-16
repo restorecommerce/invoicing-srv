@@ -1,0 +1,18 @@
+// INDEX
+* xref:index.adoc[Invoicing Service]
+
+// FEATURES
+* xref:index.adoc#features[Features]
+// CONFIGURATION
+* xref:index.adoc#configuration[Configuration]
+
+// API
+* xref:index.adoc#API[API]
+** xref:index.adoc#api_invoice[Invoice]
+*** xref:index.adoc#api_invoice_crud[CRUD Operations]
+
+// EVENTS
+* xref:index.adoc#events[Events]
+** xref:index.adoc#emitted-events[Emitted]
+** xref:index.adoc#consumed-events[Consumed]
+** xref:index.adoc#custom_commands[Custom Commands]
