@@ -1,15 +1,16 @@
 # 0.0.9
 
 - Updated dependencies
-- changes for payment method details
+- Changes for payment method details
+- Added email templates
 
 # 0.0.8
 
-* Updated dependencies
+- Updated dependencies
 
 # 0.0.7
 
-* Public release
+- Public release
 
 # 0.0.6
 
