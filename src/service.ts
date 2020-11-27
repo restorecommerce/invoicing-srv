@@ -1,22 +1,22 @@
-
 import * as _ from 'lodash';
 import * as bluebird from 'bluebird';
 import * as chassis from '@restorecommerce/chassis-srv';
 import * as fetch from 'node-fetch';
 import * as MemoryStream from 'memorystream';
 import * as redis from 'redis';
-import { InvoiceService } from './InvoiceResourceService';
+import {InvoiceService} from './InvoiceResourceService';
 import {
-  BillingAddress, EconomicAreas, RenderingStrategy, InvoicePositions
+  BillingAddress, EconomicAreas, InvoicePositions, RenderingStrategy
 } from './interfaces';
-import { Events, Topic } from '@restorecommerce/kafka-client';
+import {Events, Topic} from '@restorecommerce/kafka-client';
 import {
-  unmarshallProtobufAny, getPreviousMonth, requestID,
-  marshallProtobufAny, storeInvoicePositions, getJSONPaths
+  getJSONPaths, getPreviousMonth, marshallProtobufAny, requestID,
+  storeInvoicePositions, unmarshallProtobufAny
 } from './utils';
-import { createServiceConfig } from '@restorecommerce/service-config';
-import { Logger, createLogger } from '@restorecommerce/logger';
 import * as grpcClient from '@restorecommerce/grpc-client';
+import {Logger} from 'winston';
+import {createLogger} from '@restorecommerce/logger';
+import {createServiceConfig} from '@restorecommerce/service-config';
 import {Arango} from '@restorecommerce/chassis-srv/lib/database/provider/arango/base';
 
 bluebird.promisifyAll(redis.RedisClient.prototype);
@@ -25,12 +25,14 @@ const DELETE_ORG_DATA = 'deleteOrgData';
 export let billingService: BillingService;
 
 class BillingCommandInterface extends chassis.CommandInterface {
-  constructor(server: chassis.Server, cfg: any, logger: Logger, events: Events, redisClient: redis.RedisClient) {
+  constructor(server: chassis.Server, cfg: any, logger: Logger, events: Events,
+    redisClient: redis.RedisClient) {
     super(server, cfg, logger, events, redisClient);
   }
 
   async restore(payload: any): Promise<any> {
-    this.logger.info('Restore operation called. Executing operation prologue...');
+    this.logger.info(
+      'Restore operation called. Executing operation prologue...');
     this.logger.info('Resetting Redis counters...');
 
     const fieldGenConfig = this.config.invoiceFieldsGenerators;
@@ -63,12 +65,13 @@ class BillingCommandInterface extends chassis.CommandInterface {
     return {
       [`${collectionName}Deleted`]: async function restoreDeleted(message: any,
         ctx: any, config: any, eventName: string): Promise<any> {
-        await db.delete(collectionName, { id: message.id });
+        await db.delete(collectionName, {id: message.id});
         return {};
       },
       [`${collectionName}Modified`]: async function restoreModified(message: any,
         ctx: any, config: any, eventName: string): Promise<any> {
-        await db.update(collectionName, { id: message.id }, _.omitBy(message, _.isNil));
+        await db.update(collectionName, {id: message.id},
+          _.omitBy(message, _.isNil));
         return {};
       },
       [`${collectionName}Created`]: async function restoreCreated(message: any,
@@ -100,6 +103,7 @@ export class BillingService {
   subjectTpl: any;
   attachmentTpl: any;
   commandInterface: BillingCommandInterface;
+
   constructor(cfg: any, logger: Logger) {
     this.cfg = cfg;
     this.logger = logger;
@@ -111,7 +115,8 @@ export class BillingService {
     this.pendingTasks = new Map<string, Object>();
     const that = this;
 
-    this['eventsListener'] = async (msg: any, context: any, config: any, eventName: string): Promise<any> => {
+    this['eventsListener'] = async (msg: any, context: any, config: any,
+      eventName: string): Promise<any> => {
 
       switch (eventName) {
         case 'triggerInvoices':
@@ -121,7 +126,8 @@ export class BillingService {
           // store Invoice positions to redis - although an array is sent to kafka
           // it emits each object to kafka (just like for any normal resource)
           const eachInvoicePos = msg;
-          that.logger.info(`Received message with event name ${eventName}:`, { eachInvoicePos });
+          that.logger.info(`Received message with event name ${eventName}:`,
+            {eachInvoicePos});
           await storeInvoicePositions(that.redisInvoicePosClient,
             eachInvoicePos.id, eachInvoicePos, that.logger);
           break;
@@ -138,7 +144,8 @@ export class BillingService {
               if (jobData['pendingEmails'].has(reqID)) {
                 found = true;
                 if (msg.response.length == 0) {
-                  that.logger.silly('Empty response from rendering request. Skipping.');
+                  that.logger.silly(
+                    'Empty response from rendering request. Skipping.');
                   return;
                 }
 
@@ -153,18 +160,19 @@ export class BillingService {
 
                 // sending HTML content for PDF rendering request
                 const pdf = await that.renderPDF(attachmentObj.attachment);
-                await that.sendInvoiceEmail(subjectObj.subject, emailObj.body, pdf,
-                  emailAddress, invoiceNumber, org_userID);
+                await that.sendInvoiceEmail(subjectObj.subject, emailObj.body,
+                  pdf, emailAddress, invoiceNumber, org_userID);
                 // the jobDone would now be handled on contract-srv
                 jobData['pendingEmails'].delete(reqID);
 
                 const deleteResponse = await new Promise((resolve, reject) => {
-                  that.redisInvoicePosClient.del(jobID, (err: any, response: any): any => {
-                    if (err) {
-                      reject(err);
-                    }
-                    resolve(response);
-                  });
+                  that.redisInvoicePosClient.del(jobID,
+                    (err: any, response: any): any => {
+                      if (err) {
+                        reject(err);
+                      }
+                      resolve(response);
+                    });
                 });
                 if (deleteResponse === 1) {
                   that.logger.info(`Redis key ${jobID} deleted Successfully`);
@@ -179,7 +187,8 @@ export class BillingService {
             }
 
             if (!found) {
-              that.logger.silly('Unknown render response with ID', msg.id, '; discarding message.');
+              that.logger.silly('Unknown render response with ID', msg.id,
+                '; discarding message.');
             }
           } catch (err) {
             if (err.name) {
@@ -193,10 +202,12 @@ export class BillingService {
         case DELETE_ORG_DATA:
           try {
             // get list of Org and userIDs
-            const { org_ids, user_ids } = msg;
+            const {org_ids, user_ids} = msg;
             // delete associated resources with the orgs and users
-            that.logger.info('Deleting invoices for organizations :', { ids: org_ids });
-            await that.invoiceService.deleteInvoicesByOrganization(org_ids, user_ids);
+            that.logger.info('Deleting invoices for organizations :',
+              {ids: org_ids});
+            await that.invoiceService.deleteInvoicesByOrganization(org_ids,
+              user_ids);
           } catch (err) {
             that.logger.error('Exception caught deleting Org data:', err);
           }
@@ -210,7 +221,8 @@ export class BillingService {
   }
 
   async start(): Promise<void> {
-    const db = await chassis.database.get(this.cfg.get('database:main'), this.logger);
+    const db = await chassis.database.get(this.cfg.get('database:main'),
+      this.logger);
     const serviceNamesCfg = this.cfg.get('serviceNames');
 
     // create Server
@@ -220,7 +232,8 @@ export class BillingService {
     const kafkaCfg = this.cfg.get('events:kafka');
     this.events = new Events(kafkaCfg, this.logger);
     await this.events.start();
-    this.offsetStore = new chassis.OffsetStore(this.events, this.cfg, this.logger);
+    this.offsetStore =
+      new chassis.OffsetStore(this.events, this.cfg, this.logger);
 
     const topicTypes = _.keys(kafkaCfg.topics);
     this.topics = new Map<string, Topic>();
@@ -229,7 +242,8 @@ export class BillingService {
       const topicName = kafkaCfg.topics[topicType].topic;
       const topic = this.events.topic(topicName);
       const offSetValue: number = await this.offsetStore.getOffset(topicName);
-      this.logger.info('subscribing to topic with offset value', { topicName }, { offSetValue });
+      this.logger.info('subscribing to topic with offset value', {topicName},
+        {offSetValue});
       if (kafkaCfg.topics[topicType].events) {
         const eventNames = kafkaCfg.topics[topicType].events;
         for (let eventName of eventNames) {
@@ -250,20 +264,24 @@ export class BillingService {
     const client = new grpcClient.Client(clientCfg, this.logger);
     const ostorageService = await client.connect();
 
-    this.invoiceService = new InvoiceService(this.cfg, db, this.events, this.logger,
-      this.redisClient, this.topics.get('invoice.resource'), ostorageService);
+    this.invoiceService =
+      new InvoiceService(this.cfg, db, this.events, this.logger,
+        this.redisClient, this.topics.get('invoice.resource'), ostorageService);
     await this.server.bind(serviceNamesCfg.billing, this.invoiceService);
 
     // Add ReflectionService
     const reflectionServiceName = serviceNamesCfg.reflection;
-    const transportName = this.cfg.get(`server:services:${reflectionServiceName}:serverReflectionInfo:transport:0`);
+    const transportName = this.cfg.get(
+      `server:services:${reflectionServiceName}:serverReflectionInfo:transport:0`);
     const transport = this.server.transport[transportName];
-    const reflectionService = new chassis.ServerReflection(transport.$builder, this.server.config);
+    const reflectionService = new chassis.ServerReflection(transport.$builder,
+      this.server.config);
     await this.server.bind(serviceNamesCfg.reflection, reflectionService);
 
-    await this.server.bind(serviceNamesCfg.health, new chassis.Health(this.commandInterface, {
-      readiness: async () => !!await ((db as Arango).db).version()
-    }));
+    await this.server.bind(serviceNamesCfg.health,
+      new chassis.Health(this.commandInterface, {
+        readiness: async () => !!await ((db as Arango).db).version()
+      }));
 
     // load templates
     await this.loadTemplates();
@@ -294,7 +312,8 @@ export class BillingService {
           });
         });
         if (!invoiceData) {
-          this.logger.info(`There was no Invoice positions stored for the identifier ${id} and hence
+          this.logger.info(
+            `There was no Invoice positions stored for the identifier ${id} and hence
             skipping sending notification of Invoice`);
           continue;
         }
@@ -348,7 +367,8 @@ export class BillingService {
     await this.topics.get('notification').emit('sendEmail', notification);
 
     // persist invoice and delete tmp from Redis
-    await this.invoiceService.saveInvoice(requestID(email, invoiceNumber, org_userID),
+    await this.invoiceService.saveInvoice(
+      requestID(email, invoiceNumber, org_userID),
       invoice, `Invoice_${now.format('YYYY')}_${now.format('MMMM')}`);
   }
 
@@ -357,20 +377,16 @@ export class BillingService {
    * @param data
    */
   async buildInvoice(data: InvoicePositions, org_userID: string): Promise<any> {
-    const { invoice_positions, sender_billing_address, sender_organization,
-      recipient_billing_address, recipient_organization, recipient_customer, payment_method_details,
+    const {
+      invoice_positions, sender_billing_address, sender_organization,
+      recipient_billing_address, recipient_organization, recipient_customer,
+      payment_method_details
     } = data;
 
     const phoneNumber = recipient_billing_address.telephone;
 
     const subTotalGross = invoice_positions[0].totalPrice.gross;
     const subTotalNet = invoice_positions[0].totalPrice.net;
-    // filter transfer-receiving bank account
-    let bankDetails;
-    if (payment_method_details) {
-      bankDetails = payment_method_details;
-    }
-
 
     let vatText: string, showVAT = true;
 
@@ -429,9 +445,9 @@ export class BillingService {
       vatValue: subTotalGross - subTotalNet,
       total: subTotalGross,
 
-      senderBank: bankDetails.bankName,
-      senderIBAN: bankDetails.iban,
-      senderBIC: bankDetails.bic,
+      senderBank: payment_method_details.bankName,
+      senderIBAN: payment_method_details.iban,
+      senderBIC: payment_method_details.bic,
 
       senderEmail: sender_billing_address.email,
       senderWebsite: sender_billing_address.website,
@@ -454,16 +470,16 @@ export class BillingService {
     };
 
     await this.invoiceService.holdInvoice(invoiceResource, requestID(
-      recipient_billing_address.email, invoiceResource.invoice_number, org_userID));
+      recipient_billing_address.email, invoiceResource.invoice_number,
+      org_userID));
     return invoice;
   }
 
   /**
    *
-   * @param customer
    * @param billingAddress
    * @param invoice
-   * @param urlPrefix
+   * @param msg_id
    */
   async sendHTMLRenderRequest(billingAddress: BillingAddress, invoice: any,
     msg_id: string): Promise<void> {
@@ -481,13 +497,14 @@ export class BillingService {
     // or order_id###user_id - this is needed for setting the scope of generated
     // invoice while storing in ostorage-srv
     const identifier = msg_id.split('###')[1];
-    const id = requestID(billingAddress.email, invoice.invoiceNumber, identifier);
+    const id = requestID(billingAddress.email, invoice.invoiceNumber,
+      identifier);
     const renderRequest = {
       id,
       payload: [
         {
           templates: marshallProtobufAny({
-            body: { body: this.bodyTpl, layout: this.layoutTpl }
+            body: {body: this.bodyTpl, layout: this.layoutTpl}
           }),
           data: marshallProtobufAny(invoice),
           options: marshallProtobufAny(options),
@@ -495,7 +512,7 @@ export class BillingService {
         },
         {
           templates: marshallProtobufAny({
-            subject: { body: this.subjectTpl }
+            subject: {body: this.subjectTpl}
           }),
           data: marshallProtobufAny(invoice),
           options: marshallProtobufAny(options),
@@ -503,7 +520,7 @@ export class BillingService {
         },
         {
           templates: marshallProtobufAny({
-            attachment: { body: this.attachmentTpl, layout: this.layoutTpl },
+            attachment: {body: this.attachmentTpl, layout: this.layoutTpl},
           }),
           data: marshallProtobufAny(invoice),
           style_url: styleURL,
@@ -533,21 +550,25 @@ export class BillingService {
       this.templatesURLPrefix = hbsTemplates.prefix;
       const templates = hbsTemplates.templates;
 
-      let response = await fetch(this.templatesURLPrefix + templates['layout'], {});
+      let response = await fetch(this.templatesURLPrefix + templates['layout'],
+        {});
       this.layoutTpl = await response.text();
 
       response = await fetch(this.templatesURLPrefix + templates['body'], {});
       this.bodyTpl = await response.text();
 
-      response = await fetch(this.templatesURLPrefix + templates['subject'], {});
+      response =
+        await fetch(this.templatesURLPrefix + templates['subject'], {});
       this.subjectTpl = await response.text();
 
       if (templates['attachment']) {
-        response = await fetch(this.templatesURLPrefix + templates['attachment'], {});
+        response =
+          await fetch(this.templatesURLPrefix + templates['attachment'], {});
         this.attachmentTpl = await response.text();
       }
 
-      response = await fetch(this.templatesURLPrefix + templates['resources'], {});
+      response =
+        await fetch(this.templatesURLPrefix + templates['resources'], {});
       this.externalRrc = JSON.parse(await response.text());
     } catch (err) {
       this.logger.error('Error ocurred while loading HBS templates:', err);
@@ -559,8 +580,6 @@ export class BillingService {
    * configurations and pdf options
    * @param htmlInvoice - Invoice
    * @returns Promise<Buffer>
-   * @param invoice
-   * @param urlPrefix
    */
   async renderPDF(htmlInvoice: any): Promise<Buffer> {
     const apiKey = this.cfg.get('pdf-rendering:apiKey');
@@ -574,13 +593,14 @@ export class BillingService {
     for (let pdfOption of pdfOptions) {
       if (pdfOption.includes(footerTemplatePrefix)) {
         const footerTemplateURL = pdfOption.split('=')[1];
-        let response = await this.fetchURL(footerTemplateURL, { method: 'GET' });
+        let response = await this.fetchURL(footerTemplateURL, {method: 'GET'});
         // let footerTemplate = response.toString().replace(/(\r\n|\n|\r)/gm, '');
         // footerTemplate = footerTemplate.replace(/\s+/g, '');
         pdfOption = footerTemplatePrefix + '=' + response.toString();
       } else if (pdfOption.includes(headerTemplatePrefix)) {
         const headerTemplateURL = pdfOption.split('=')[1];
-        const response = await this.fetchURL(headerTemplateURL, { method: 'GET' });
+        const response = await this.fetchURL(headerTemplateURL,
+          {method: 'GET'});
         pdfOption = headerTemplatePrefix + '=' + response.toString();
       }
       pdfOptionsURI = pdfOptionsURI + pdfOption + paramSeparator;
@@ -603,7 +623,7 @@ export class BillingService {
   }
 
   private async fetchURL(url: string, options: any): Promise<Buffer> {
-    const stream = new MemoryStream(null, { readable: false });
+    const stream = new MemoryStream(null, {readable: false});
     const response = await fetch(url, options);
     if (!response.ok) {
       throw new Error('Error retrieving PDF!');

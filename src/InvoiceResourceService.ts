@@ -1,9 +1,12 @@
-import { ResourcesAPIBase, ServiceBase, toStruct } from '@restorecommerce/resource-base-interface';
-import { Events, Topic } from '@restorecommerce/kafka-client';
+import {
+  ResourcesAPIBase, ServiceBase
+} from '@restorecommerce/resource-base-interface';
+import {Events, Topic} from '@restorecommerce/kafka-client';
 import * as _ from 'lodash';
 import * as bluebird from 'bluebird';
 import * as redis from 'redis';
-import { Readable } from 'stream';
+import {Readable} from 'stream';
+
 bluebird.promisifyAll(redis.RedisClient.prototype);
 
 export class InvoiceService extends ServiceBase {
@@ -12,9 +15,11 @@ export class InvoiceService extends ServiceBase {
   cfg: any;
   logger: any;
   ostorageService: any;
+
   constructor(cfg: any, db: any, events: Events, logger: any, redisClient: any,
     resourceTopic: Topic, ostorageService: any) {
-    super('invoice', resourceTopic, logger, new ResourcesAPIBase(db, 'invoices'), true);
+    super('invoice', resourceTopic, logger,
+      new ResourcesAPIBase(db, 'invoices'), true);
     let startingValue: string;
     redisClient.get('invoices:invoice_number', (err, reply) => {
       if (err) {
@@ -25,11 +30,12 @@ export class InvoiceService extends ServiceBase {
         const invoiceFieldsCfg = cfg.get('invoiceFieldsGenerators:invoice');
         startingValue = invoiceFieldsCfg.invoice_number.startingValue || '0';
 
-        redisClient.set('invoices:invoice_number', startingValue, (err, reply) => {
-          if (err) {
-            throw err;
-          }
-        });
+        redisClient.set('invoices:invoice_number', startingValue,
+          (err, reply) => {
+            if (err) {
+              throw err;
+            }
+          });
       } else {
         startingValue = reply;
       }
@@ -49,15 +55,19 @@ export class InvoiceService extends ServiceBase {
   /**
    * Temporarily hold the invoice in redis to later be persisted in the database.
    * @param invoice
+   * @param requestID
    */
   async holdInvoice(invoice: any, requestID: string): Promise<any> {
     // TODO: HASH SET!!!
-    await this.redisClient.setAsync(`tmp_invoices:${requestID}`, JSON.stringify(invoice));
+    await this.redisClient.setAsync(`tmp_invoices:${requestID}`,
+      JSON.stringify(invoice));
   }
 
-  async saveInvoice(requestID: string, document: Buffer, fileName: string): Promise<any> {
+  async saveInvoice(requestID: string, document: Buffer,
+    fileName: string): Promise<any> {
 
-    const invoice = JSON.parse(await this.redisClient.getAsync(`tmp_invoices:${requestID}`));
+    const invoice = JSON.parse(
+      await this.redisClient.getAsync(`tmp_invoices:${requestID}`));
     const org_userID = requestID.split('###')[2];
 
     // invoice marshalled as base64
@@ -91,7 +101,13 @@ export class InvoiceService extends ServiceBase {
         content_type: 'application/pdf'
       };
       stream.on('data', async (chunk) => {
-        let dataChunk = { bucket: 'invoices', key: fileName, meta: invoice.meta, options, object: chunk };
+        let dataChunk = {
+          bucket: 'invoices',
+          key: fileName,
+          meta: invoice.meta,
+          options,
+          object: chunk
+        };
         await call.write(dataChunk);
       });
       stream.on('error', (error) => {
@@ -107,14 +123,15 @@ export class InvoiceService extends ServiceBase {
               resolve(data);
             });
           });
-          resolve();
+          resolve(response);
         });
       });
     } catch (err) {
-      this.logger.info('Error storing the invoice to ostorage-srv:', { error: err.message });
+      this.logger.info('Error storing the invoice to ostorage-srv:',
+        {error: err.message});
     }
     this.logger.info('Response after storing the invoice from ostorage-srv:',
-      { response });
+      {response});
 
     await super.create({
       request: {
@@ -131,7 +148,8 @@ export class InvoiceService extends ServiceBase {
 
     for (let i = 0; i < results.items.length; i++) {
       if (results.items[i].document) {
-        results.items[i].document = Buffer.from(results.items[i].document, 'base64').toString();
+        results.items[i].document =
+          Buffer.from(results.items[i].document, 'base64').toString();
       }
     }
 
@@ -156,7 +174,8 @@ export class InvoiceService extends ServiceBase {
         }
       });
       if (result.error) {
-        this.logger.error('Error while filtering invoices by ownership', result.error);
+        this.logger.error('Error while filtering invoices by ownership',
+          result.error);
         return;
       }
       const items = result.items || [];
@@ -176,7 +195,8 @@ export class InvoiceService extends ServiceBase {
         }
       });
       if (result.error) {
-        this.logger.error('Error while filtering invoices by ownership', result.error);
+        this.logger.error('Error while filtering invoices by ownership',
+          result.error);
         return;
       }
       const items = result.items || [];
@@ -184,7 +204,8 @@ export class InvoiceService extends ServiceBase {
     }
   }
 
-  async deleteItemsByOwner(items: Array<any>, orgIDs: string[], userIDs: string[]): Promise<void> {
+  async deleteItemsByOwner(items: Array<any>, orgIDs: string[],
+    userIDs: string[]): Promise<void> {
     const ownerInstanceURN = this.cfg.get('urns:ownerInstance');
     const ownerIndicatoryEntityURN = this.cfg.get('urns:ownerEntity');
     const ownerOrgURN = this.cfg.get('urns:organization');
@@ -192,13 +213,14 @@ export class InvoiceService extends ServiceBase {
 
     let toDelete = [];
     for (let invoice of items) {
-      if (invoice && invoice.meta && invoice.meta.owner
-        && invoice.meta.owner.length > 0) {
+      if (invoice && invoice.meta && invoice.meta.owner &&
+        invoice.meta.owner.length > 0) {
         const ownerList = _.cloneDeep(invoice.meta.owner);
         for (let i = ownerList.length - 1; i >= 0; i -= 1) {
           const owner = ownerList[i];
           if (owner.id === ownerInstanceURN &&
-            (orgIDs.indexOf(owner.value) > -1 || userIDs.indexOf(owner.value) > -1)) {
+            (orgIDs.indexOf(owner.value) > -1 || userIDs.indexOf(owner.value) >
+              -1)) {
             const ownerPrevAttribute = ownerList[i - 1];
             if ((ownerPrevAttribute.id === ownerIndicatoryEntityURN) &&
               (ownerPrevAttribute.value === ownerOrgURN ||
@@ -213,6 +235,6 @@ export class InvoiceService extends ServiceBase {
         }
       }
     }
-    await super.delete({ request: { ids: toDelete } });
+    await super.delete({request: {ids: toDelete}});
   }
 }

@@ -1,3 +1,8 @@
+# 0.0.9
+
+- Updated dependencies
+- changes for payment method details
+
 # 0.0.8
 
 * Updated dependencies
