@@ -1,6 +1,5 @@
-import * as _ from 'lodash';
 import * as moment from 'moment';
-import { InvoicePrice, InvoicePositions } from './interfaces';
+import {InvoicePositions, InvoicePrice} from './interfaces';
 
 
 export const marshallProtobufAny = (msg: any): any => {
@@ -25,7 +24,8 @@ export const calcPrice = (price: number, tax: any): InvoicePrice => {
   };
 };
 
-export const addPrice = (currentPrice: InvoicePrice, price: number, tax: any): InvoicePrice => {
+export const addPrice = (currentPrice: InvoicePrice, price: number,
+  tax: any): InvoicePrice => {
   const toAdd = calcPrice(price, tax);
   return {
     gross: currentPrice.gross + toAdd.gross,
@@ -33,12 +33,18 @@ export const addPrice = (currentPrice: InvoicePrice, price: number, tax: any): I
   };
 };
 
-export const requestID = (email: string, invoiceNumber: number, org_userID: string): string => {
+export const requestID = (email: string, invoiceNumber: number,
+  org_userID: string): string => {
   return `${email}###${invoiceNumber}###${org_userID}`;
 };
 
-export const storeInvoicePositions = async(redisInvoicePosClient: any,
+export const storeInvoicePositions = async (redisInvoicePosClient: any,
   id: string, msg: InvoicePositions, logger: any): Promise<void> => {
+  // unmarshall payment method details data
+  if (msg && msg.payment_method_details && msg.payment_method_details.value) {
+    msg.payment_method_details =
+      unmarshallProtobufAny(msg.payment_method_details);
+  }
   const existingInvoicePositions = await new Promise((resolve, reject) => {
     redisInvoicePosClient.get(id, (err, response) => {
       if (err) {
@@ -61,18 +67,20 @@ export const storeInvoicePositions = async(redisInvoicePosClient: any,
     } else {
       invoicePositionsObj = msg;
     }
-    // updated invoice postions
+    // updated invoice positions
     redisInvoicePosClient.set(id, JSON.stringify(invoicePositionsObj));
-    logger.info(`Invoice positions with ID ${msg.id} has been stored to redis successfully`);
-  }
-  else {
+    logger.info(
+      `Invoice positions with ID ${msg.id} has been stored to redis successfully`);
+  } else {
     // First message
     redisInvoicePosClient.set(id, JSON.stringify(msg));
-    logger.info(`Invoice positions with ID ${msg.id} has been stored to redis successfully`);
+    logger.info(
+      `Invoice positions with ID ${msg.id} has been stored to redis successfully`);
   }
 };
 
-export const getJSONPaths= (object: any, prefix: string, pathsList: Array<string>): any => {
+export const getJSONPaths = (object: any, prefix: string,
+  pathsList: Array<string>): any => {
   if (!pathsList) {
     pathsList = [];
   }

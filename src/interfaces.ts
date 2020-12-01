@@ -64,7 +64,7 @@ export interface InvoicePositions {
   recipient_organization: any;
   sender_organization: any;
   recipient_customer: any;
-  payment_method_details: PaymentMethodDetails;
+  payment_method_details: any;
 }
 
 export interface InvoicePosition {
