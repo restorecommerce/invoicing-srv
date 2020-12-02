@@ -28,12 +28,8 @@ FROM base as deployment
 
 RUN npm ci --only=production
 
-COPY filter_ownership.aql $APP_HOME/filter_ownership.aql
-COPY triggerInvoices.js $APP_HOME/triggerInvoices.js
-COPY triggerInvoice_job.js $APP_HOME/triggerInvoice_job.js
-COPY setupTopics.js $APP_HOME/setupTopics.js
-COPY cfg $APP_HOME/cfg
-COPY --from=build $APP_HOME/lib $APP_HOME/lib
+COPY --chown=node:node . $APP_HOME
+COPY --chown=node:node --from=build $APP_HOME/lib $APP_HOME/lib
 
 EXPOSE 50051
 
