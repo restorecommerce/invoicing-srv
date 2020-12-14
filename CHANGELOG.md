@@ -1,7 +1,3 @@
-## 0.0.10 (December 2nd, 2020)
-
-- fix docker image permissions
-
 # 0.0.9
 
 - Updated dependencies

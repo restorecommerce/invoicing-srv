@@ -12,4 +12,3 @@ node_modules/
 *~
 
  !.eslintrc.js
-lib/
