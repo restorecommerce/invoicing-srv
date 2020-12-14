@@ -1,7 +1,11 @@
 {
   "elastic-search": {
     "client": {
-      "node": "http://elasticsearch:9200"
+      "node": "http://elasticsearch:9200",
+      "log": [
+        "info",
+        "error"
+      ]
     }
   },
   "database": {

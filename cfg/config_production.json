@@ -3,11 +3,7 @@
     "elasticsearch": {
       "level": "info",
       "clientOpts": {
-        "node": "http://elasticsearch:9200",
-        "auth": {
-          "username": "elastic",
-          "password": "changeme"
-        }
+        "node": "http://elasticsearch:9200"
       },
       "source": "invoicing-srv"
     }
@@ -15,10 +11,10 @@
   "elastic-search": {
     "client": {
       "node": "http://elasticsearch:9200",
-      "auth": {
-        "username": "elastic",
-        "password": "changeme"
-      }
+      "log": [
+        "info",
+        "error"
+      ]
     }
   },
   "database": {
