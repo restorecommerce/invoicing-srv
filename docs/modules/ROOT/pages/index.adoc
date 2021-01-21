@@ -187,7 +187,7 @@ List of events emitted by this microservice for below topics:
 [width="100%",cols="31%,33%,36%",options="header",]
 |==========================================================================================
 |Topic Name |Event Name |Description
-|`io.restorecommerce.notification` |`sendEmail` |send generated notifications
+|`io.restorecommerce.notification_req` |`sendEmail` |send generated notifications
 |`io.restorecommerce.rendering` |`renderRequest` |request notifications content rendering
 |`io.restorecommerce.jobs` |`jobDone` |commit job failure or completion
 |`io.restorecommerce.invoices.resource` |`triggerInvoices` |trigger invoices
