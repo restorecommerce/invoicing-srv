@@ -364,7 +364,7 @@ export class BillingService {
       ]
     };
 
-    await this.topics.get('notification').emit('sendEmail', notification);
+    await this.topics.get('notificationReq').emit('sendEmail', notification);
 
     // persist invoice and delete tmp from Redis
     await this.invoiceService.saveInvoice(

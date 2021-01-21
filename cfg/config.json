@@ -59,17 +59,10 @@
       "latestOffset": true,
       "sendEmail": {
         "protos": [
-          "io/restorecommerce/notification.proto"
+          "io/restorecommerce/notification_req.proto"
         ],
         "protoRoot": "node_modules/@restorecommerce/protos/",
-        "messageObject": "io.restorecommerce.notification.Notification"
-      },
-      "invoiceNotification-event": {
-        "protos": [
-          "io/restorecommerce/commandinterface.proto"
-        ],
-        "protoRoot": "node_modules/@restorecommerce/protos/",
-        "messageObject": "io.restorecommerce.NotificationRequest"
+        "messageObject": "io.restorecommerce.notification_req.NotificationReq"
       },
       "storeInvoicePositions": {
         "protos": [
@@ -205,8 +198,8 @@
         "messageObject": "io.restorecommerce.job.JobFailed"
       },
       "topics": {
-        "notification": {
-          "topic": "io.restorecommerce.notification"
+        "notificationReq": {
+          "topic": "io.restorecommerce.notification_req"
         },
         "command": {
           "topic": "io.restorecommerce.command",
