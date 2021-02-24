@@ -1,9 +1,13 @@
-FROM node:12.18.3-stretch
+FROM node:14.15.5-stretch
+
 # Create app directory
 ENV HOME=/home/node
 ENV APP_HOME=/home/node/invoicing-srv
+RUN npm install -g npm
+
 ## SETTING UP THE APP ##
 WORKDIR $APP_HOME
+
 # Set config volumes
 VOLUME $APP_HOME/cfg
 VOLUME $APP_HOME/protos
