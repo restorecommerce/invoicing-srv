@@ -1,6 +1,11 @@
-# 0.0.10
+# 0.0.11
 
 - Updated dependencies
+
+# 0.0.10
+
+- Update dependencies, enable data stream based logging by default
+- update deps and docker files
 
 # 0.0.9
 
