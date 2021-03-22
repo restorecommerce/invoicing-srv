@@ -55,7 +55,7 @@
       "provider": "kafka",
       "groupId": "billing-srv",
       "clientId": "billing-srv",
-      "kafkaHost": "localhost:9092",
+      "kafkaHost": "localhost:29092",
       "latestOffset": true,
       "sendEmail": {
         "protos": [

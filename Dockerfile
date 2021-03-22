@@ -3,6 +3,8 @@ FROM node:14.15.5-stretch
 # Create app directory
 ENV HOME=/home/node
 ENV APP_HOME=/home/node/invoicing-srv
+
+# Install dependencies
 RUN npm install -g npm
 
 ## SETTING UP THE APP ##
