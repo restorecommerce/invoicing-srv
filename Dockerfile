@@ -1,28 +1,48 @@
-FROM node:14.15.5-stretch
+# syntax = docker/dockerfile:experimental
 
-# Create app directory
-ENV HOME=/home/node
-ENV APP_HOME=/home/node/invoicing-srv
-
-# Install dependencies
+### Base
+FROM node:14.15.5-alpine as base
 RUN npm install -g npm
 
-## SETTING UP THE APP ##
+RUN --mount=type=cache,uid=1000,gid=1000,target=/home/node/.npm npm install -g typescript@3.4.1
+
+USER node
+ARG APP_HOME=/home/node/srv
 WORKDIR $APP_HOME
 
-# Set config volumes
-VOLUME $APP_HOME/cfg
-VOLUME $APP_HOME/protos
-ADD --chown=node . $APP_HOME
-RUN chown -R node:node $HOME
-USER node
-RUN npm install
+COPY package.json package.json
+COPY package-lock.json package-lock.json
+
+
+### Build
+FROM base as build
+
+RUN --mount=type=cache,uid=1000,gid=1000,target=/home/node/.npm npm ci
+
+COPY --chown=node:node . .
+
 RUN npm run build
+
+
+### Deployment
+FROM base as deployment
+
+RUN --mount=type=cache,uid=1000,gid=1000,target=/home/node/.npm npm ci --only=production
+
+COPY filter_ownership.aql $APP_HOME/filter_ownership.aql
+COPY triggerInvoices.js $APP_HOME/triggerInvoices.js
+COPY triggerInvoice_job.js $APP_HOME/triggerInvoice_job.js
+COPY setupTopics.js $APP_HOME/setupTopics.js
+COPY cfg $APP_HOME/cfg
+COPY --from=build $APP_HOME/lib $APP_HOME/lib
+
 EXPOSE 50051
+
 USER root
 RUN GRPC_HEALTH_PROBE_VERSION=v0.3.3 && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
     chmod +x /bin/grpc_health_probe
 USER node
+
 HEALTHCHECK CMD ["/bin/grpc_health_probe", "-addr=:50051"]
 CMD [ "npm", "start" ]
