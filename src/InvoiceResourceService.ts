@@ -1,11 +1,11 @@
 import {
   ResourcesAPIBase, ServiceBase
 } from '@restorecommerce/resource-base-interface';
-import {Events, Topic} from '@restorecommerce/kafka-client';
+import { Events, Topic } from '@restorecommerce/kafka-client';
 import * as _ from 'lodash';
 import * as bluebird from 'bluebird';
 import * as redis from 'redis';
-import {Readable} from 'stream';
+import { Readable, Transform } from 'stream';
 
 bluebird.promisifyAll(redis.RedisClient.prototype);
 
@@ -90,48 +90,44 @@ export class InvoiceService extends ServiceBase {
 
     fileName = `${fileName}_${org_userID}.pdf`;
     const stream = new Readable();
-    let response;
     // convert buffer document to readable stream
     stream.push(document);
     stream.push(null);
-    const call = await this.ostorageService.put();
+    const options = {
+      content_type: 'application/pdf'
+    };
+    // using tech user as subject for fileupload to OSS
+    let tokenTechUser: any = {};
+    const techUsersCfg = this.cfg.get('techUsers');
+    if (techUsersCfg && techUsersCfg.length > 0) {
+      tokenTechUser = _.find(techUsersCfg, { id: 'upload_objects_user_id' });
+    }
+    const transformBuffObj = () => {
+      return new Transform({
+        objectMode: true,
+        transform: (chunk, _, done) => {
+          // object buffer
+          const dataChunk = {
+            bucket: 'inovoices',
+            key: fileName,
+            object: chunk,
+            meta: invoice.meta,
+            options,
+            subject: tokenTechUser
+          };
+          done(null, dataChunk);
+        }
+      });
+    };
+    let putResponse;
     try {
       // content-type is `application/pdf` for invoices
-      let options = {
-        content_type: 'application/pdf'
-      };
-      stream.on('data', async (chunk) => {
-        let dataChunk = {
-          bucket: 'invoices',
-          key: fileName,
-          meta: invoice.meta,
-          options,
-          object: chunk
-        };
-        await call.write(dataChunk);
-      });
-      stream.on('error', (error) => {
-        this.logger.error('Error caught writing data to ostorage-srv:', error);
-        throw error;
-      });
-
-      response = new Promise((resolve, reject) => {
-        stream.on('end', async () => {
-          response = await call.end();
-          response = new Promise((resolve, reject) => {
-            response((err, data) => {
-              resolve(data);
-            });
-          });
-          resolve(response);
-        });
-      });
+      putResponse = await this.ostorageService.put(stream.pipe(transformBuffObj()));
     } catch (err) {
       this.logger.info('Error storing the invoice to ostorage-srv:',
-        {error: err.message});
+        { error: err.message });
     }
-    this.logger.info('Response after storing the invoice from ostorage-srv:',
-      {response});
+    this.logger.info('Response after storing the invoice from ostorage-srv', putResponse);
 
     await super.create({
       request: {
@@ -146,10 +142,10 @@ export class InvoiceService extends ServiceBase {
   async read(call: any, context: any): Promise<any> {
     const results = await super.read(call, context);
 
-    for (let i = 0; i < results.items.length; i++) {
-      if (results.items[i].document) {
-        results.items[i].document =
-          Buffer.from(results.items[i].document, 'base64').toString();
+    for (let itemObj of results.items) {
+      if (itemObj?.payload?.document) {
+        itemObj.payload.document =
+          Buffer.from(itemObj.payload.document, 'base64').toString();
       }
     }
 
@@ -173,12 +169,12 @@ export class InvoiceService extends ServiceBase {
           }
         }
       });
-      if (result.error) {
+      if (result?.operation_status?.code != 200) {
         this.logger.error('Error while filtering invoices by ownership',
           result.error);
         return;
       }
-      const items = result.items || [];
+      const items = result.items ? result.items.map((itemObj) => itemObj.payload) : [];
       await this.deleteItemsByOwner(items, orgIDs, userIDs);
     }
 
@@ -194,12 +190,12 @@ export class InvoiceService extends ServiceBase {
           }
         }
       });
-      if (result.error) {
+      if (result?.operation_status?.code != 200) {
         this.logger.error('Error while filtering invoices by ownership',
           result.error);
         return;
       }
-      const items = result.items || [];
+      const items = result.items ? result.items.map((itemObj) => itemObj.payload) : [];
       await this.deleteItemsByOwner(items, orgIDs, userIDs);
     }
   }
@@ -235,6 +231,6 @@ export class InvoiceService extends ServiceBase {
         }
       }
     }
-    await super.delete({request: {ids: toDelete}});
+    await super.delete({ request: { ids: toDelete } });
   }
 }

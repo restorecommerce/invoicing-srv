@@ -28,21 +28,20 @@
   },
   "events": {
     "kafka": {
-      "kafkaHost": "kafka:9092"
+      "kafka": {
+        "brokers": [
+          "kafka:9092"
+        ]
+      }
     }
   },
   "hbs_templates": {
-    "prefix": "http://xingular-console:8080/"
+    "prefix": "http://restorecommerce-console:8080/"
   },
   "client": {
     "services": {
       "ostorage": {
-        "publisher": {
-          "name": "static",
-          "instances": [
-            "grpc://ostorage-srv:50051"
-          ]
-        }
+        "address": "ostorage-srv:50051"
       }
     }
   },
@@ -50,8 +49,8 @@
     "url": "http://pdf-rendering-srv:9000/api/render",
     "options": {
       "pdf": {
-        "footerTemplateURL": "http://xingular-console:8080/invoicing-srv/templates/footer_template.html",
-        "headerTemplateURL": "http://xingular-console:8080/invoicing-srv/templates/header_template.html"
+        "footerTemplateURL": "http://restorecommerce-console:8080/invoicing-srv/templates/footer_template.html",
+        "headerTemplateURL": "http://restorecommerce-console:8080/invoicing-srv/templates/header_template.html"
       }
     }
   },

@@ -4,20 +4,20 @@ import * as chassis from '@restorecommerce/chassis-srv';
 import * as fetch from 'node-fetch';
 import * as MemoryStream from 'memorystream';
 import * as redis from 'redis';
-import {InvoiceService} from './InvoiceResourceService';
+import { InvoiceService } from './InvoiceResourceService';
 import {
   BillingAddress, EconomicAreas, InvoicePositions, RenderingStrategy
 } from './interfaces';
-import {Events, Topic} from '@restorecommerce/kafka-client';
+import { Events, Topic } from '@restorecommerce/kafka-client';
 import {
   getJSONPaths, getPreviousMonth, marshallProtobufAny, requestID,
   storeInvoicePositions, unmarshallProtobufAny
 } from './utils';
-import * as grpcClient from '@restorecommerce/grpc-client';
-import {Logger} from 'winston';
-import {createLogger} from '@restorecommerce/logger';
-import {createServiceConfig} from '@restorecommerce/service-config';
-import {Arango} from '@restorecommerce/chassis-srv/lib/database/provider/arango/base';
+import { GrpcClient } from '@restorecommerce/grpc-client';
+import { Logger } from 'winston';
+import { createLogger } from '@restorecommerce/logger';
+import { createServiceConfig } from '@restorecommerce/service-config';
+import { Arango } from '@restorecommerce/chassis-srv/lib/database/provider/arango/base';
 
 bluebird.promisifyAll(redis.RedisClient.prototype);
 const DELETE_ORG_DATA = 'deleteOrgData';
@@ -65,12 +65,12 @@ class BillingCommandInterface extends chassis.CommandInterface {
     return {
       [`${collectionName}Deleted`]: async function restoreDeleted(message: any,
         ctx: any, config: any, eventName: string): Promise<any> {
-        await db.delete(collectionName, {id: message.id});
+        await db.delete(collectionName, { id: message.id });
         return {};
       },
       [`${collectionName}Modified`]: async function restoreModified(message: any,
         ctx: any, config: any, eventName: string): Promise<any> {
-        await db.update(collectionName, {id: message.id},
+        await db.update(collectionName, { id: message.id },
           _.omitBy(message, _.isNil));
         return {};
       },
@@ -127,7 +127,7 @@ export class BillingService {
           // it emits each object to kafka (just like for any normal resource)
           const eachInvoicePos = msg;
           that.logger.info(`Received message with event name ${eventName}:`,
-            {eachInvoicePos});
+            { eachInvoicePos });
           await storeInvoicePositions(that.redisInvoicePosClient,
             eachInvoicePos.id, eachInvoicePos, that.logger);
           break;
@@ -202,10 +202,10 @@ export class BillingService {
         case DELETE_ORG_DATA:
           try {
             // get list of Org and userIDs
-            const {org_ids, user_ids} = msg;
+            const { org_ids, user_ids, subject } = msg;
             // delete associated resources with the orgs and users
             that.logger.info('Deleting invoices for organizations :',
-              {ids: org_ids});
+              { ids: org_ids });
             await that.invoiceService.deleteInvoicesByOrganization(org_ids,
               user_ids);
           } catch (err) {
@@ -240,10 +240,10 @@ export class BillingService {
 
     for (let topicType of topicTypes) {
       const topicName = kafkaCfg.topics[topicType].topic;
-      const topic = this.events.topic(topicName);
+      const topic = await this.events.topic(topicName);
       const offSetValue: number = await this.offsetStore.getOffset(topicName);
-      this.logger.info('subscribing to topic with offset value', {topicName},
-        {offSetValue});
+      this.logger.info('subscribing to topic with offset value', { topicName },
+        { offSetValue });
       if (kafkaCfg.topics[topicType].events) {
         const eventNames = kafkaCfg.topics[topicType].events;
         for (let eventName of eventNames) {
@@ -261,8 +261,8 @@ export class BillingService {
 
     // ostorage client to store billing pdfs
     const clientCfg = this.cfg.get('client:services:ostorage');
-    const client = new grpcClient.Client(clientCfg, this.logger);
-    const ostorageService = await client.connect();
+    const client = new GrpcClient(clientCfg, this.logger);
+    const ostorageService = client.ostorage;
 
     this.invoiceService =
       new InvoiceService(this.cfg, db, this.events, this.logger,
@@ -504,7 +504,7 @@ export class BillingService {
       payload: [
         {
           templates: marshallProtobufAny({
-            body: {body: this.bodyTpl, layout: this.layoutTpl}
+            body: { body: this.bodyTpl, layout: this.layoutTpl }
           }),
           data: marshallProtobufAny(invoice),
           options: marshallProtobufAny(options),
@@ -512,7 +512,7 @@ export class BillingService {
         },
         {
           templates: marshallProtobufAny({
-            subject: {body: this.subjectTpl}
+            subject: { body: this.subjectTpl }
           }),
           data: marshallProtobufAny(invoice),
           options: marshallProtobufAny(options),
@@ -520,7 +520,7 @@ export class BillingService {
         },
         {
           templates: marshallProtobufAny({
-            attachment: {body: this.attachmentTpl, layout: this.layoutTpl},
+            attachment: { body: this.attachmentTpl, layout: this.layoutTpl },
           }),
           data: marshallProtobufAny(invoice),
           style_url: styleURL,
@@ -593,14 +593,14 @@ export class BillingService {
     for (let pdfOption of pdfOptions) {
       if (pdfOption.includes(footerTemplatePrefix)) {
         const footerTemplateURL = pdfOption.split('=')[1];
-        let response = await this.fetchURL(footerTemplateURL, {method: 'GET'});
+        let response = await this.fetchURL(footerTemplateURL, { method: 'GET' });
         // let footerTemplate = response.toString().replace(/(\r\n|\n|\r)/gm, '');
         // footerTemplate = footerTemplate.replace(/\s+/g, '');
         pdfOption = footerTemplatePrefix + '=' + response.toString();
       } else if (pdfOption.includes(headerTemplatePrefix)) {
         const headerTemplateURL = pdfOption.split('=')[1];
         const response = await this.fetchURL(headerTemplateURL,
-          {method: 'GET'});
+          { method: 'GET' });
         pdfOption = headerTemplatePrefix + '=' + response.toString();
       }
       pdfOptionsURI = pdfOptionsURI + pdfOption + paramSeparator;
@@ -623,7 +623,7 @@ export class BillingService {
   }
 
   private async fetchURL(url: string, options: any): Promise<Buffer> {
-    const stream = new MemoryStream(null, {readable: false});
+    const stream = new MemoryStream(null, { readable: false });
     const response = await fetch(url, options);
     if (!response.ok) {
       throw new Error('Error retrieving PDF!');
