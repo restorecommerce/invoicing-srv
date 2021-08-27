@@ -1,11 +1,13 @@
 # syntax = docker/dockerfile:experimental
 
 ### Base
-FROM node:14.15.5-alpine as base
+FROM node:16.3.0-alpine as base
+ENV NO_UPDATE_NOTIFIER=true
 RUN npm install -g npm
+RUN npm install -g typescript
 
-RUN --mount=type=cache,uid=1000,gid=1000,target=/home/node/.npm npm install -g typescript@3.4.1
-
+RUN apk add --no-cache git
+RUN apk add g++ make python3
 USER node
 ARG APP_HOME=/home/node/srv
 WORKDIR $APP_HOME
@@ -17,7 +19,7 @@ COPY package-lock.json package-lock.json
 ### Build
 FROM base as build
 
-RUN --mount=type=cache,uid=1000,gid=1000,target=/home/node/.npm npm ci
+RUN npm ci
 
 COPY --chown=node:node . .
 
@@ -27,12 +29,9 @@ RUN npm run build
 ### Deployment
 FROM base as deployment
 
-RUN --mount=type=cache,uid=1000,gid=1000,target=/home/node/.npm npm ci --only=production
+RUN npm ci --only=production
 
 COPY filter_ownership.aql $APP_HOME/filter_ownership.aql
-COPY triggerInvoices.js $APP_HOME/triggerInvoices.js
-COPY triggerInvoice_job.js $APP_HOME/triggerInvoice_job.js
-COPY setupTopics.js $APP_HOME/setupTopics.js
 COPY cfg $APP_HOME/cfg
 COPY --from=build $APP_HOME/lib $APP_HOME/lib
 
