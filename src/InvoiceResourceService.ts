@@ -174,7 +174,8 @@ export class InvoiceService extends ServiceBase {
           result.error);
         return;
       }
-      const items = result.items ? result.items.map((itemObj) => itemObj.payload) : [];
+      let items = [];
+      result.items.map((itemObj) => items.push(itemObj.payload));
       await this.deleteItemsByOwner(items, orgIDs, userIDs);
     }
 
@@ -195,7 +196,8 @@ export class InvoiceService extends ServiceBase {
           result.error);
         return;
       }
-      const items = result.items ? result.items.map((itemObj) => itemObj.payload) : [];
+      let items = [];
+      result.items.map((itemObj) => items.push(itemObj.payload));
       await this.deleteItemsByOwner(items, orgIDs, userIDs);
     }
   }
