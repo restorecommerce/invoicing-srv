@@ -1,9 +1,8 @@
 import * as _ from 'lodash';
-import * as bluebird from 'bluebird';
 import * as chassis from '@restorecommerce/chassis-srv';
 import * as fetch from 'node-fetch';
 import * as MemoryStream from 'memorystream';
-import * as redis from 'redis';
+import { createClient, RedisClientType } from 'redis';
 import { InvoiceService } from './InvoiceResourceService';
 import {
   BillingAddress, EconomicAreas, InvoicePositions, RenderingStrategy
@@ -19,14 +18,13 @@ import { createLogger } from '@restorecommerce/logger';
 import { createServiceConfig } from '@restorecommerce/service-config';
 import { Arango } from '@restorecommerce/chassis-srv/lib/database/provider/arango/base';
 
-bluebird.promisifyAll(redis.RedisClient.prototype);
 const DELETE_ORG_DATA = 'deleteOrgData';
 
 export let billingService: BillingService;
 
 class BillingCommandInterface extends chassis.CommandInterface {
   constructor(server: chassis.Server, cfg: any, logger: Logger, events: Events,
-    redisClient: redis.RedisClient) {
+    redisClient: RedisClientType<any, any>) {
     super(server, cfg, logger, events, redisClient);
   }
 
@@ -36,7 +34,7 @@ class BillingCommandInterface extends chassis.CommandInterface {
     this.logger.info('Resetting Redis counters...');
 
     const fieldGenConfig = this.config.invoiceFieldsGenerators;
-    await billingService.redisClient.setAsync('invoices:invoice_number',
+    await billingService.redisClient.set('invoices:invoice_number',
       fieldGenConfig.invoice.invoice_number.startingValue);
     return await super.restore(payload);
   }
@@ -48,7 +46,7 @@ class BillingCommandInterface extends chassis.CommandInterface {
 
     // resetting counter
     const fieldGenConfig = this.config.invoiceFieldsGenerators;
-    await billingService.redisClient.setAsync('invoices:invoice_number',
+    await billingService.redisClient.set('invoices:invoice_number',
       fieldGenConfig.invoice.invoice_number.startingValue);
 
     this.logger.info('Resetting cached data...');
@@ -78,7 +76,7 @@ class BillingCommandInterface extends chassis.CommandInterface {
         ctx: any, config: any, eventName: string): Promise<any> {
         await db.insert(`${collectionName}s`, message);
         // incrementing counter
-        await billingService.redisClient.incrAsync('invoices:invoice_number');
+        await billingService.redisClient.incr('invoices:invoice_number');
         return {};
       }
     };
@@ -88,8 +86,8 @@ class BillingCommandInterface extends chassis.CommandInterface {
 export class BillingService {
   pendingTasks: Map<string, Object>;
   invoiceService: InvoiceService;
-  redisClient: any;
-  redisInvoicePosClient: any;
+  redisClient: RedisClientType<any, any>;
+  redisInvoicePosClient: RedisClientType<any, any>;
   cfg: any;
   logger: Logger;
   events: Events;
@@ -108,10 +106,19 @@ export class BillingService {
     this.cfg = cfg;
     this.logger = logger;
     const redisConfig = cfg.get('redis');
-    redisConfig.db = cfg.get('redis:db-indexes:db-invoiceCounter');
-    this.redisClient = redis.createClient(redisConfig);
-    redisConfig.db = cfg.get('redis:db-indexes:db-invoicePositions');
-    this.redisInvoicePosClient = redis.createClient(redisConfig);
+    redisConfig.database = cfg.get('redis:db-indexes:db-invoiceCounter');
+    this.redisClient = createClient(redisConfig);
+    this.redisClient.on('error', (err) => this.logger.error('Redis client error in invoice counter store', err));
+    this.redisClient.connect().then((val) =>
+      logger.info('Redis client connection successful for invoice counter store')).
+      catch(err => this.logger.error('Redis connection error in invoice counter store', err));
+    redisConfig.database = cfg.get('redis:db-indexes:db-invoicePositions');
+    this.redisInvoicePosClient = createClient(redisConfig);
+    this.redisInvoicePosClient.on('error', (err) => this.logger.error('Redis client error in invoice position store', err));
+    this.redisInvoicePosClient.connect().then((val) =>
+      logger.info('Redis client connection successful for invoice position store')).
+      catch(err => this.logger.error('Redis connection error in invoice position store', err));
+
     this.pendingTasks = new Map<string, Object>();
     const that = this;
 
@@ -165,15 +172,7 @@ export class BillingService {
                 // the jobDone would now be handled on contract-srv
                 jobData['pendingEmails'].delete(reqID);
 
-                const deleteResponse = await new Promise((resolve, reject) => {
-                  that.redisInvoicePosClient.del(jobID,
-                    (err: any, response: any): any => {
-                      if (err) {
-                        reject(err);
-                      }
-                      resolve(response);
-                    });
-                });
+                const deleteResponse = await this.redisInvoicePosClient.del(jobID);
                 if (deleteResponse === 1) {
                   that.logger.info(`Redis key ${jobID} deleted Successfully`);
                 }
@@ -302,15 +301,7 @@ export class BillingService {
       for (let id of ids) {
         // the id here refers to contractID or orderID along with org or userID
         const org_userID = id.split('###')[1];
-        let invoiceData: any = await new Promise((resolve, reject) => {
-
-          this.redisInvoicePosClient.get(id, (err, response) => {
-            if (err) {
-              reject(err);
-            }
-            resolve(response);
-          });
-        });
+        let invoiceData: any = await this.redisInvoicePosClient.get(id);
         if (!invoiceData) {
           this.logger.info(
             `There was no Invoice positions stored for the identifier ${id} and hence
