@@ -1,3 +1,7 @@
+## 0.2.4 (February 18th, 2022)
+
+- updated chassis-srv (includes fix for offset store config)
+
 ## 0.2.3 (February 15th, 2022)
 
 - up all dependencies
