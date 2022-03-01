@@ -639,7 +639,12 @@ export class BillingService {
 
 if (require.main === module) {
   const cfg = createServiceConfig(process.cwd());
-  const logger = createLogger(cfg.get('logger'));
+  const loggerCfg = cfg.get('logger');
+  loggerCfg.esTransformer = (msg) => {
+    msg.fields = JSON.stringify(msg.fields);
+    return msg;
+  };
+  const logger = createLogger(loggerCfg);
   const service = new BillingService(cfg, logger);
   service.start().catch((err) => {
     console.error('client error', err.stack);

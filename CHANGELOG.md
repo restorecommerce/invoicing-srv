@@ -1,3 +1,7 @@
+## 0.2.5 (March 1st, 2022)
+
+- fixed logger
+
 ## 0.2.4 (February 18th, 2022)
 
 - updated chassis-srv (includes fix for offset store config)
