@@ -8,7 +8,7 @@ import { Readable, Transform } from 'stream';
 
 export class InvoiceService extends ServiceBase {
   invoiceCount: number;
-  redisClient: any;
+  redisClient: RedisClientType<any, any>;
   cfg: any;
   logger: any;
   ostorageService: any;

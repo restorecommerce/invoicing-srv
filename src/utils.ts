@@ -1,5 +1,6 @@
 import * as moment from 'moment';
 import {InvoicePositions, InvoicePrice} from './interfaces';
+import { RedisClientType } from 'redis';
 
 
 export const marshallProtobufAny = (msg: any): any => {
@@ -38,21 +39,14 @@ export const requestID = (email: string, invoiceNumber: number,
   return `${email}###${invoiceNumber}###${org_userID}`;
 };
 
-export const storeInvoicePositions = async (redisInvoicePosClient: any,
+export const storeInvoicePositions = async (redisInvoicePosClient: RedisClientType<any, any>,
   id: string, msg: InvoicePositions, logger: any): Promise<void> => {
   // unmarshall payment method details data
   if (msg && msg.payment_method_details && msg.payment_method_details.value) {
     msg.payment_method_details =
       unmarshallProtobufAny(msg.payment_method_details);
   }
-  const existingInvoicePositions = await new Promise((resolve, reject) => {
-    redisInvoicePosClient.get(id, (err, response) => {
-      if (err) {
-        reject(err);
-      }
-      resolve(response);
-    });
-  });
+  const existingInvoicePositions = await redisInvoicePosClient.get(id);
   if (existingInvoicePositions) {
     let invoicePositionsObj = JSON.parse(existingInvoicePositions.toString());
     const listOfExistingInvoicePositions = invoicePositionsObj.invoice_positions;
@@ -68,12 +62,12 @@ export const storeInvoicePositions = async (redisInvoicePosClient: any,
       invoicePositionsObj = msg;
     }
     // updated invoice positions
-    redisInvoicePosClient.set(id, JSON.stringify(invoicePositionsObj));
+    await redisInvoicePosClient.set(id, JSON.stringify(invoicePositionsObj));
     logger.info(
       `Invoice positions with ID ${msg.id} has been stored to redis successfully`);
   } else {
     // First message
-    redisInvoicePosClient.set(id, JSON.stringify(msg));
+    await redisInvoicePosClient.set(id, JSON.stringify(msg));
     logger.info(
       `Invoice positions with ID ${msg.id} has been stored to redis successfully`);
   }
