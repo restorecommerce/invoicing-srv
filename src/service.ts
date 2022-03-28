@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
 import * as chassis from '@restorecommerce/chassis-srv';
 import * as fetch from 'node-fetch';
-import * as MemoryStream from 'memorystream';
+import MemoryStream from 'memorystream';
 import { createClient, RedisClientType } from 'redis';
 import { InvoiceService } from './InvoiceResourceService';
 import {
@@ -141,6 +141,7 @@ export class BillingService {
         case 'renderResponse':
           try {
             const reqID = msg.id;
+            this.logger.debug('Processing render response for', { id: msg.id });
             const split = reqID.split('###');
             let emailAddress: string = split[0];
             const invoiceNumber = split[1];
@@ -166,6 +167,7 @@ export class BillingService {
                 const attachmentObj = unmarshallProtobufAny(renderedAttachment);
 
                 // sending HTML content for PDF rendering request
+                this.logger.debug('HTML invoice is', { invoice: attachmentObj?.attachment });
                 const pdf = await that.renderPDF(attachmentObj.attachment);
                 await that.sendInvoiceEmail(subjectObj.subject, emailObj.body,
                   pdf, emailAddress, invoiceNumber, org_userID);
@@ -294,6 +296,7 @@ export class BillingService {
   // the email notification needs to be sent out now and this is in turn decided by contract-srv
   // which actually reads the schedule and triggers sending of Invoice
   async sendRenderRequests(msg: any): Promise<boolean> {
+    this.logger.debug('Trigger Invoices message ids', { ids: msg.ids });
     try {
       const ids = msg.ids;
       // id can be either contract or customer_id stored as key in redis
@@ -318,6 +321,7 @@ export class BillingService {
         data.sender_organization = invoiceData.sender_organization;
         data.payment_method_details = invoiceData.payment_method_details;
 
+        this.logger.debug('Invoice Positions data retreived from Redis', invoiceData);
         // generate invoice pdfs
         const invoice = await this.buildInvoice(data, org_userID);
         await this.sendHTMLRenderRequest(invoiceData.recipient_billing_address,

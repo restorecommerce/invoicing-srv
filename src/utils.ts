@@ -11,23 +11,24 @@ export const marshallProtobufAny = (msg: any): any => {
 };
 
 export const unmarshallProtobufAny = (msg: any): any => {
-  return JSON.parse(msg.value.toString());
+  const unmarshalledMsg = msg && msg.value ? JSON.parse(msg.value.toString()) : {};
+  return unmarshalledMsg;
 };
 
 export const getPreviousMonth = (): moment.Moment => {
   return moment().subtract(1, 'months');
 };
 
-export const calcPrice = (price: number, tax: any): InvoicePrice => {
+export const calcPrice = (netPrice: number, tax: any): InvoicePrice => {
   return {
-    gross: price,
-    net: price * (1 - tax.rate)
+    gross: netPrice + netPrice * (tax.rate),
+    net: netPrice
   };
 };
 
-export const addPrice = (currentPrice: InvoicePrice, price: number,
+export const addPrice = (currentPrice: InvoicePrice, netPrice: number,
   tax: any): InvoicePrice => {
-  const toAdd = calcPrice(price, tax);
+  const toAdd = calcPrice(netPrice, tax);
   return {
     gross: currentPrice.gross + toAdd.gross,
     net: currentPrice.net + toAdd.net
