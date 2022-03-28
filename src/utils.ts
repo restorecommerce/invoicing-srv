@@ -1,4 +1,4 @@
-import * as moment from 'moment';
+import moment from 'moment';
 import {InvoicePositions, InvoicePrice} from './interfaces';
 import { RedisClientType } from 'redis';
 

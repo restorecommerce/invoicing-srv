@@ -23,12 +23,16 @@ export class InvoiceService extends ServiceBase {
         const invoiceFieldsCfg = cfg.get('invoiceFieldsGenerators:invoice');
         startingValue = invoiceFieldsCfg.invoice_number.startingValue || '0';
 
-        redisClient.set('invoices:invoice_number', startingValue);
+        redisClient.set('invoices:invoice_number', startingValue).catch(err => {
+          logger.error('Error storing invoice number to redis');
+        });
       } else {
         startingValue = reply;
       }
     }
-    );
+    ).catch(err => {
+      logger.error('Error getting invoice number from redis', err);
+    });
     this.redisClient = redisClient;
     this.cfg = cfg;
     this.logger = logger;
