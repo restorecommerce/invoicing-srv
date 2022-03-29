@@ -1,3 +1,10 @@
+## 0.2.6 (March 29th, 2022)
+
+- redis client updated get operation and added typings
+- up tsconfig and import statements
+- fixed price calculation and improved logging
+- up dependencies
+
 ## 0.2.5 (March 1st, 2022)
 
 - fixed logger
