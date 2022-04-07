@@ -390,7 +390,7 @@ export class BillingService {
 
     switch (recipient_billing_address.economic_area) {
       case EconomicAreas.DE:
-        vatText = '+ VAT';
+        vatText = 'VAT';
         break;
       case EconomicAreas.EEA:
         vatText = `VAT Free, ${sender_organization.vat_id}`;
@@ -406,6 +406,7 @@ export class BillingService {
     const lastMonth = new Date();
     lastMonth.setDate(0);
 
+    let recipientOrgName = recipient_billing_address.organization_name ? recipient_billing_address.organization_name : recipient_organization.name;
     const invoice = {
       month: lastMonth.toISOString(),
       logo: senderLogo,
@@ -413,6 +414,7 @@ export class BillingService {
       senderOrganizationName: sender_organization.name,
       senderStreet: sender_billing_address.street,
       senderPostcode: sender_billing_address.postcode,
+      senderLocality: sender_billing_address.locality,
       senderRegion: sender_billing_address.region,
       senderCountry: sender_billing_address.country_name,
 
@@ -424,9 +426,10 @@ export class BillingService {
       showVAT,
       customerVAT: sender_organization.vat_id,
 
-      customerName: recipient_organization.name,
+      customerName: recipientOrgName,
       customerStreet: recipient_billing_address.street,
       customerPostcode: recipient_billing_address.postcode,
+      customerLocality: recipient_billing_address.locality,
       customerRegion: recipient_billing_address.region,
       customerCountry: recipient_billing_address.country_name,
 

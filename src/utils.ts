@@ -1,5 +1,5 @@
 import moment from 'moment';
-import {InvoicePositions, InvoicePrice} from './interfaces';
+import { InvoicePositions, InvoicePrice } from './interfaces';
 import { RedisClientType } from 'redis';
 
 
@@ -21,7 +21,8 @@ export const getPreviousMonth = (): moment.Moment => {
 
 export const calcPrice = (netPrice: number, tax: any): InvoicePrice => {
   return {
-    gross: netPrice + netPrice * (tax.rate),
+    // tax is decimal number 0 - 1
+    gross: netPrice + netPrice * (tax),
     net: netPrice
   };
 };
@@ -54,9 +55,22 @@ export const storeInvoicePositions = async (redisInvoicePosClient: RedisClientTy
     if (listOfExistingInvoicePositions &&
       listOfExistingInvoicePositions.length > 0) {
       if (msg && msg.invoice_positions) {
-        // extract msg Invoice positions and add to existing
-        for (let eachInvoicePos of msg.invoice_positions) {
-          listOfExistingInvoicePositions.push(eachInvoicePos);
+        try {
+          // extract msg Invoice positions and add to existing
+          for (let eachInvoicePos of msg.invoice_positions) {
+            eachInvoicePos.tableList.forEach(e => listOfExistingInvoicePositions[0].tableList.push(e));
+            // listOfExistingInvoicePositions[0].tableList.push(...eachInvoicePos.tableList);
+            const newItems = eachInvoicePos.tableList;
+            // For each item in tableList based on vat and amount, caclulate and and gross and net
+            newItems.forEach((item) => {
+              const netPrice = item.amount;
+              let tax = 0;
+              if (item.vat && item.vat.endsWith('%')) tax = Number(item.vat.substring(0, item.vat.length - 1));
+              listOfExistingInvoicePositions[0].totalPrice = addPrice(listOfExistingInvoicePositions[0].totalPrice, netPrice, tax);
+            });
+          }
+        } catch (err) {
+          logger.error('Error processing invoice position', { err, msg });
         }
       }
     } else {
