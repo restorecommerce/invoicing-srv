@@ -1,3 +1,8 @@
+## 0.2.7 (April 7th, 2022)
+
+- fix invoice price calculation, updated invoice proto
+- included locality and billing recipient org name in invoice
+
 ## 0.2.6 (March 29th, 2022)
 
 - redis client updated get operation and added typings
