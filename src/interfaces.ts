@@ -28,11 +28,13 @@ export interface BillingAddress {
   street: string;
   postcode: string;
   region: string;
+  locality: string;
   timezone: string;
   email: string;
   website: string;
   economic_area: EconomicAreas;
   locale: string;
+  organization_name: string;
 }
 
 export enum EconomicAreas {
