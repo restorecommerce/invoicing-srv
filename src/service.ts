@@ -320,6 +320,7 @@ export class BillingService {
         data.sender_billing_address = invoiceData.sender_billing_address;
         data.sender_organization = invoiceData.sender_organization;
         data.payment_method_details = invoiceData.payment_method_details;
+        data.contract_start_date = invoiceData.contract_start_date;
 
         this.logger.debug('Invoice Positions data retreived from Redis', invoiceData);
         // generate invoice pdfs
@@ -375,10 +376,10 @@ export class BillingService {
     const {
       invoice_positions, sender_billing_address, sender_organization,
       recipient_billing_address, recipient_organization, recipient_customer,
-      payment_method_details
+      payment_method_details, contract_start_date
     } = data;
 
-    const phoneNumber = recipient_billing_address.telephone;
+    const phoneNumber = sender_billing_address.telephone;
 
     const subTotalGross = invoice_positions[0].totalPrice.gross;
     const subTotalNet = invoice_positions[0].totalPrice.net;
@@ -406,6 +407,12 @@ export class BillingService {
     const lastMonth = new Date();
     lastMonth.setDate(0);
 
+    // add dueDate and contractStartDate
+    const dueDateDays = this.cfg.get('invoiceDueDateDays') ? this.cfg.get('invoiceDueDateDays') : 15;
+    let dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + dueDateDays);
+    // iterate through invoice position and convert contract_start_date from snake case to camel case
+    invoice_positions[0]?.tableList.forEach(e => e.contractStartDate = (e as any).contract_start_date);
     let recipientOrgName = recipient_billing_address.organization_name ? recipient_billing_address.organization_name : recipient_organization.name;
     const invoice = {
       month: lastMonth.toISOString(),
@@ -420,6 +427,8 @@ export class BillingService {
 
       invoiceNumber: await this.invoiceService.getInvoiceCount(),
       timestamp: now.toISOString(),
+      // add dueDate
+      dueDate,
       timezone: sender_billing_address.timezone,
       paymentStatus: 'unpaid',
       customerNumber: recipient_customer.customer_number,

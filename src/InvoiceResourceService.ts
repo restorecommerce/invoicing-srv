@@ -53,7 +53,7 @@ export class InvoiceService extends ServiceBase {
   async holdInvoice(invoice: any, requestID: string): Promise<any> {
     // TODO: HASH SET!!!
     await this.redisClient.set(`tmp_invoices:${requestID}`,
-      JSON.stringify(invoice));
+      JSON.stringify(invoice), { EX: 60 * 60 * 24});
   }
 
   async saveInvoice(requestID: string, document: Buffer,

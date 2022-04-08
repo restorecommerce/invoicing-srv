@@ -22,7 +22,7 @@ export const getPreviousMonth = (): moment.Moment => {
 export const calcPrice = (netPrice: number, tax: any): InvoicePrice => {
   return {
     // tax is decimal number 0 - 1
-    gross: netPrice + netPrice * (tax),
+    gross: netPrice + (netPrice * (tax.rate)),
     net: netPrice
   };
 };
@@ -64,8 +64,11 @@ export const storeInvoicePositions = async (redisInvoicePosClient: RedisClientTy
             // For each item in tableList based on vat and amount, caclulate and and gross and net
             newItems.forEach((item) => {
               const netPrice = item.amount;
-              let tax = 0;
+              let tax: any = 0;
               if (item.vat && item.vat.endsWith('%')) tax = Number(item.vat.substring(0, item.vat.length - 1));
+              if (tax) {
+                tax = { rate: tax / 100 };
+              }
               listOfExistingInvoicePositions[0].totalPrice = addPrice(listOfExistingInvoicePositions[0].totalPrice, netPrice, tax);
             });
           }
