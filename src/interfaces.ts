@@ -68,7 +68,6 @@ export interface InvoicePositions {
   sender_organization: any;
   recipient_customer: any;
   payment_method_details: any;
-  contract_start_date?: number;
 }
 
 export interface InvoicePosition {

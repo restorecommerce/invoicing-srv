@@ -376,7 +376,7 @@ export class BillingService {
     const {
       invoice_positions, sender_billing_address, sender_organization,
       recipient_billing_address, recipient_organization, recipient_customer,
-      payment_method_details, contract_start_date
+      payment_method_details
     } = data;
 
     const phoneNumber = sender_billing_address.telephone;

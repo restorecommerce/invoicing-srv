@@ -292,6 +292,7 @@
       }
     }
   },
+  "invoiceDueDateDays": 15,
   "server": {
     "services": {
       "io-restorecommerce-invoicing-cis": {
