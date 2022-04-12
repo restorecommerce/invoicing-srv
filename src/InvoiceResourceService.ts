@@ -101,7 +101,7 @@ export class InvoiceService extends ServiceBase {
         transform: (chunk, _, done) => {
           // object buffer
           const dataChunk = {
-            bucket: 'inovoices',
+            bucket: 'invoices',
             key: fileName,
             object: chunk,
             meta: invoice.meta,
