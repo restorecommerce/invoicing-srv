@@ -68,6 +68,7 @@ export interface InvoicePositions {
   sender_organization: any;
   recipient_customer: any;
   payment_method_details: any;
+  invoice_no?: string;
 }
 
 export interface InvoicePosition {
@@ -83,4 +84,8 @@ export interface PaymentMethodDetails {
   bankName?: string;
   transferType?: string;
   eMail?: string; // in case of PayPal
+}
+
+export interface InvoiceNumberResponse {
+  invoice_no: string;
 }

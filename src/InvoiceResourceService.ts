@@ -5,6 +5,7 @@ import { Events, Topic } from '@restorecommerce/kafka-client';
 import * as _ from 'lodash';
 import { RedisClientType } from 'redis';
 import { Readable, Transform } from 'stream';
+import { InvoiceNumberResponse } from './interfaces';
 
 export class InvoiceService extends ServiceBase {
   invoiceCount: number;
@@ -39,10 +40,11 @@ export class InvoiceService extends ServiceBase {
     this.ostorageService = ostorageService;
   }
 
-  async getInvoiceCount(): Promise<any> {
-    const count = await this.redisClient.get('invoices:invoice_number');
+  async generateInvoiceNumber(call: any, ctx?: any): Promise<InvoiceNumberResponse> {
+    const context = call?.request?.context;
+    let count = await this.redisClient.get('invoices:invoice_number');
     await this.redisClient.incr('invoices:invoice_number');
-    return count;
+    return { invoice_no: count };
   }
 
   /**
@@ -53,7 +55,7 @@ export class InvoiceService extends ServiceBase {
   async holdInvoice(invoice: any, requestID: string): Promise<any> {
     // TODO: HASH SET!!!
     await this.redisClient.set(`tmp_invoices:${requestID}`,
-      JSON.stringify(invoice), { EX: 60 * 60 * 24});
+      JSON.stringify(invoice), { EX: 60 * 60 * 24 });
   }
 
   async saveInvoice(requestID: string, document: Buffer,
@@ -81,7 +83,6 @@ export class InvoiceService extends ServiceBase {
       ]
     };
 
-    fileName = `${fileName}_${org_userID}.pdf`;
     const stream = new Readable();
     // convert buffer document to readable stream
     stream.push(document);
@@ -130,6 +131,21 @@ export class InvoiceService extends ServiceBase {
 
     // deleted in-memory invoice if it exists
     await this.redisClient.del(`tmp_invoices:${invoice.invoice_number}`);
+  }
+
+  async downloadFile(bucket, key, subject): Promise<any> {
+    const call = await this.ostorageService.get({ key, bucket, subject });
+    let buffer = [];
+    call.on('data', (data) => {
+      if (data?.response?.payload) {
+        buffer.push(data.response.payload.object);
+      }
+    });
+    return new Promise((resolve, reject) => {
+      call.on('end', () => {
+        resolve(Buffer.concat(buffer));
+      });
+    });
   }
 
   async read(call: any, context: any): Promise<any> {

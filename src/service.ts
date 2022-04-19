@@ -88,6 +88,7 @@ export class BillingService {
   invoiceService: InvoiceService;
   redisClient: RedisClientType<any, any>;
   redisInvoicePosClient: RedisClientType<any, any>;
+  redisFileStoreClient: RedisClientType<any, any>;
   cfg: any;
   logger: Logger;
   events: Events;
@@ -106,18 +107,33 @@ export class BillingService {
     this.cfg = cfg;
     this.logger = logger;
     const redisConfig = cfg.get('redis');
-    redisConfig.database = cfg.get('redis:db-indexes:db-invoiceCounter');
-    this.redisClient = createClient(redisConfig);
-    this.redisClient.on('error', (err) => this.logger.error('Redis client error in invoice counter store', err));
-    this.redisClient.connect().then((val) =>
-      logger.info('Redis client connection successful for invoice counter store')).
-      catch(err => this.logger.error('Redis connection error in invoice counter store', err));
-    redisConfig.database = cfg.get('redis:db-indexes:db-invoicePositions');
-    this.redisInvoicePosClient = createClient(redisConfig);
-    this.redisInvoicePosClient.on('error', (err) => this.logger.error('Redis client error in invoice position store', err));
-    this.redisInvoicePosClient.connect().then((val) =>
-      logger.info('Redis client connection successful for invoice position store')).
-      catch(err => this.logger.error('Redis connection error in invoice position store', err));
+    if (_.has(redisConfig, 'db-indexes.db-invoiceCounter')) {
+      redisConfig.database = cfg.get('redis:db-indexes:db-invoiceCounter');
+      this.redisClient = createClient(redisConfig);
+      this.redisClient.on('error', (err) => this.logger.error('Redis client error in invoice counter store', err));
+      this.redisClient.connect().then((val) =>
+        logger.info('Redis client connection successful for invoice counter store')).
+        catch(err => this.logger.error('Redis connection error in invoice counter store', err));
+    }
+
+    if (_.has(redisConfig, 'db-indexes.db-invoicePositions')) {
+      redisConfig.database = cfg.get('redis:db-indexes:db-invoicePositions');
+      this.redisInvoicePosClient = createClient(redisConfig);
+      this.redisInvoicePosClient.on('error', (err) => this.logger.error('Redis client error in invoice position store', err));
+      this.redisInvoicePosClient.connect().then((val) =>
+        logger.info('Redis client connection successful for invoice position store')).
+        catch(err => this.logger.error('Redis connection error in invoice position store', err));
+    }
+
+    // file store for additional attachment files (apart from invoice)
+    if (_.has(redisConfig, 'db-indexes.db-fileStore')) {
+      redisConfig.database = cfg.get('redis:db-indexes:db-fileStore');
+      this.redisFileStoreClient = createClient(redisConfig);
+      this.redisFileStoreClient.on('error', (err) => this.logger.error('Redis client error in file store', err));
+      this.redisFileStoreClient.connect().then((val) =>
+        logger.info('Redis client connection successful for file store')).
+        catch(err => this.logger.error('Redis connection error in file store', err));
+    }
 
     this.pendingTasks = new Map<string, Object>();
     const that = this;
@@ -321,6 +337,7 @@ export class BillingService {
         data.sender_organization = invoiceData.sender_organization;
         data.payment_method_details = invoiceData.payment_method_details;
         data.contract_start_date = invoiceData.contract_start_date;
+        data.invoice_no = invoiceData.invoice_no;
 
         this.logger.debug('Invoice Positions data retreived from Redis', invoiceData);
         // generate invoice pdfs
@@ -342,8 +359,39 @@ export class BillingService {
   }
 
   async sendInvoiceEmail(subject: string, body: string, invoice: Buffer,
-    email: string, invoiceNumber: number, org_userID: string): Promise<void> {
-    const now = getPreviousMonth();
+    email: string, invoiceNumber: string, org_userID: string): Promise<void> {
+    let attachments = [
+      {
+        buffer: invoice,
+        filename: `Invoice_${invoiceNumber}.pdf`,
+        content_type: 'application/pdf',
+      }
+    ];
+    // add attachments with xlsx or other files if any additional attachments exists
+    let fileURLs: any = await this.redisFileStoreClient.get(invoiceNumber);
+    if (fileURLs) {
+      let techUser;
+      const techUsersCfg = this.cfg.get('techUsers');
+      if (techUsersCfg && techUsersCfg.length > 0) {
+        techUser = _.find(techUsersCfg, { id: 'upload_objects_user_id' });
+      }
+      fileURLs = JSON.parse(fileURLs);
+      // download and add it to attachments
+      for (let url of fileURLs) {
+        if (!url.startsWith('//')) {
+          this.logger.error('Invalid Object url', { url });
+        }
+        const bucketKey = url.substring(2);
+        const bucket = bucketKey.substring(0, bucketKey.indexOf('/'));
+        const key = bucketKey.substring(bucketKey.indexOf('/') + 1, bucketKey.length);
+        const bufferAttachment = await this.invoiceService.downloadFile(bucket, key, techUser);
+        attachments.push({
+          buffer: bufferAttachment,
+          filename: key,
+          content_type: ''
+        });
+      }
+    }
     const notification = {
       body,
       subject,
@@ -351,13 +399,7 @@ export class BillingService {
       email: {
         to: email.split(',')
       },
-      attachments: [
-        {
-          buffer: invoice,
-          filename: `Invoice_${now.format('YYYY')}_${now.format('MMMM')}.pdf`,
-          content_type: 'application/pdf',
-        }
-      ]
+      attachments
     };
 
     await this.topics.get('notificationReq').emit('sendEmail', notification);
@@ -365,7 +407,7 @@ export class BillingService {
     // persist invoice and delete tmp from Redis
     await this.invoiceService.saveInvoice(
       requestID(email, invoiceNumber, org_userID),
-      invoice, `Invoice_${now.format('YYYY')}_${now.format('MMMM')}`);
+      invoice, `Invoice_${invoiceNumber}.pdf`);
   }
 
   /**
@@ -414,6 +456,7 @@ export class BillingService {
     // iterate through invoice position and convert contract_start_date from snake case to camel case
     invoice_positions[0]?.tableList.forEach(e => e.contractStartDate = (e as any).contract_start_date);
     let recipientOrgName = recipient_billing_address.organization_name ? recipient_billing_address.organization_name : recipient_organization.name;
+    let invoiceNumber = data.invoice_no ? data.invoice_no : (await this.invoiceService.generateInvoiceNumber({})).invoice_no;
     const invoice = {
       month: lastMonth.toISOString(),
       logo: senderLogo,
@@ -425,7 +468,7 @@ export class BillingService {
       senderRegion: sender_billing_address.region,
       senderCountry: sender_billing_address.country_name,
 
-      invoiceNumber: await this.invoiceService.getInvoiceCount(),
+      invoiceNumber,
       timestamp: now.toISOString(),
       // add dueDate
       dueDate,

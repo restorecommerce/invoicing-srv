@@ -36,7 +36,7 @@ export const addPrice = (currentPrice: InvoicePrice, netPrice: number,
   };
 };
 
-export const requestID = (email: string, invoiceNumber: number,
+export const requestID = (email: string, invoiceNumber: string,
   org_userID: string): string => {
   return `${email}###${invoiceNumber}###${org_userID}`;
 };
