@@ -69,6 +69,8 @@ export interface InvoicePositions {
   recipient_customer: any;
   payment_method_details: any;
   invoice_no?: string;
+  from_date?: number;
+  to_date?: number;
 }
 
 export interface InvoicePosition {

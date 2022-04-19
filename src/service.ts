@@ -337,7 +337,10 @@ export class BillingService {
         data.sender_organization = invoiceData.sender_organization;
         data.payment_method_details = invoiceData.payment_method_details;
         data.contract_start_date = invoiceData.contract_start_date;
+        // add invoice number and value performance date
         data.invoice_no = invoiceData.invoice_no;
+        data.from_date = new Date(invoiceData.from_date);
+        data.to_date = new Date(invoiceData.to_date);
 
         this.logger.debug('Invoice Positions data retreived from Redis', invoiceData);
         // generate invoice pdfs
@@ -418,7 +421,7 @@ export class BillingService {
     const {
       invoice_positions, sender_billing_address, sender_organization,
       recipient_billing_address, recipient_organization, recipient_customer,
-      payment_method_details
+      payment_method_details, invoice_no, from_date, to_date
     } = data;
 
     const phoneNumber = sender_billing_address.telephone;
@@ -456,7 +459,7 @@ export class BillingService {
     // iterate through invoice position and convert contract_start_date from snake case to camel case
     invoice_positions[0]?.tableList.forEach(e => e.contractStartDate = (e as any).contract_start_date);
     let recipientOrgName = recipient_billing_address.organization_name ? recipient_billing_address.organization_name : recipient_organization.name;
-    let invoiceNumber = data.invoice_no ? data.invoice_no : (await this.invoiceService.generateInvoiceNumber({})).invoice_no;
+    let invoiceNumber = invoice_no ? invoice_no : (await this.invoiceService.generateInvoiceNumber({})).invoice_no;
     const invoice = {
       month: lastMonth.toISOString(),
       logo: senderLogo,
@@ -469,6 +472,8 @@ export class BillingService {
       senderCountry: sender_billing_address.country_name,
 
       invoiceNumber,
+      fromDate: from_date,
+      toDate: to_date,
       timestamp: now.toISOString(),
       // add dueDate
       dueDate,
