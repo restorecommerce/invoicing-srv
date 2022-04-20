@@ -1,3 +1,10 @@
+## 0.2.8 (April 20th, 2022)
+
+- fix price calculation and added configurable due date for invoice
+- added generateInvoiceNumber api and support for downloading additional invoice attachments
+- added value performance dates for invoice
+- bcc email configuration for invoice notification
+
 ## 0.2.7 (April 7th, 2022)
 
 - fix invoice price calculation, updated invoice proto

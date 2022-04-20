@@ -1,6 +1,6 @@
 {
   "name": "invoicing-srv",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "main": "lib/start.js",
   "description": "Generic Invoicing Service",
   "author": "n-fuse GmbH",
