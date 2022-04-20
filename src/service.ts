@@ -395,12 +395,14 @@ export class BillingService {
         });
       }
     }
+    const bccMailList = this.cfg.get('mailServerCfg:bcc');
     const notification = {
       body,
       subject,
       transport: 'email',
       email: {
-        to: email.split(',')
+        to: email.split(','),
+        bcc: bccMailList
       },
       attachments
     };
