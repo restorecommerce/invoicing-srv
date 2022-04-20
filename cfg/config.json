@@ -40,7 +40,8 @@
     "db-indexes": {
       "db-offsetStore": 0,
       "db-invoiceCounter": 2,
-      "db-invoicePositions": 9
+      "db-invoicePositions": 9,
+      "db-fileStore": 14
     }
   },
   "urns": {
@@ -315,6 +316,11 @@
           "transport": [
             "grpcBilling"
           ]
+        },
+        "generateInvoiceNumber": {
+          "transport": [
+            "grpcBilling"
+          ]
         }
       },
       "io-restorecommerce-invoicing-reflection": {
@@ -369,5 +375,10 @@
       "id": "upload_objects_user_id",
       "token": "upload_objects_user_token"
     }
-  ]
+  ],
+  "mailServerCfg": {
+    "bcc": [
+      ""
+    ]
+  }
 }
