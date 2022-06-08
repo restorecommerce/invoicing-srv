@@ -11,7 +11,7 @@
   "dependencies": {
     "@restorecommerce/chassis-srv": "^0.3.9",
     "@restorecommerce/cluster-service": "^0.1.11",
-    "@restorecommerce/kafka-client": "^0.3.1",
+    "@restorecommerce/kafka-client": "^0.3.2",
     "@restorecommerce/logger": "^0.12.1",
     "@restorecommerce/protos": "^0.6.7",
     "@restorecommerce/resource-base-interface": "^0.2.11",
