@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@restorecommerce/chassis-srv": "^0.3.9",
-    "@restorecommerce/cluster-service": "^0.1.11",
+    "@restorecommerce/cluster-service": "^0.1.13",
     "@restorecommerce/kafka-client": "^0.3.1",
     "@restorecommerce/logger": "^0.12.1",
     "@restorecommerce/protos": "^0.6.7",
