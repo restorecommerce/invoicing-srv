@@ -1,3 +1,7 @@
+## 0.3.0 (June 30th, 2022)
+
+- updated dependencies
+
 ## 0.2.8 (April 20th, 2022)
 
 - fix price calculation and added configurable due date for invoice
