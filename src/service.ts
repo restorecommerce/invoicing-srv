@@ -1,6 +1,6 @@
 import * as _ from 'lodash';
 import * as chassis from '@restorecommerce/chassis-srv';
-import * as fetch from 'node-fetch';
+import { fetch } from './utils';
 import MemoryStream from 'memorystream';
 import { createClient, RedisClientType } from 'redis';
 import { InvoiceService } from './InvoiceResourceService';

@@ -115,3 +115,12 @@ export const getJSONPaths = (object: any, prefix: string,
       return prefix + '=' + object;
   }
 };
+
+// node-fetch is now ESM only module
+// prevent TypeScript rewrite of async import() to require() in CJS projects
+const _importDynamic = new Function('modulePath', 'return import(modulePath)');
+
+export const fetch = async (...args) => {
+  const { default: fetch } = await _importDynamic('node-fetch');
+  return fetch(...args);
+};
