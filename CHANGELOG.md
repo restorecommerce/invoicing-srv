@@ -1,3 +1,7 @@
+## 0.3.1 (July 7th, 2022)
+
+- updated dependencies
+
 ## 0.3.0 (June 30th, 2022)
 
 - updated dependencies
