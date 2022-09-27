@@ -483,7 +483,7 @@ export class BillingService {
       paymentStatus: 'unpaid',
       customerNumber: recipient_customer.customer_number,
       showVAT,
-      customerVAT: sender_organization.vat_id,
+      customerVAT: recipient_organization.vat_id,
 
       customerName: recipientOrgName,
       customerStreet: recipient_billing_address.street,
