@@ -431,7 +431,21 @@ export class BillingService {
     const subTotalGross = invoice_positions[0].totalPrice.gross;
     const subTotalNet = invoice_positions[0].totalPrice.net;
 
-    let vatText: string, showVAT = true;
+    let vatText: string, showVAT = true, credit = false;
+    // set credit to true, if there is atleast one negative value in the invoice position
+    for (let ivp of invoice_positions) {
+      let rows = ivp.tableList;
+      for (let row of rows) {
+        if (row.amount < 0) {
+          credit = true;
+          this.logger.info('Invoice contains credit');
+          break;
+        }
+      }
+      if (credit) {
+        break;
+      }
+    }
 
     // VAT value is only chargeable within Germany,
     // but it should be shown if the country belongs to EEA
@@ -491,6 +505,7 @@ export class BillingService {
       customerLocality: recipient_billing_address.locality,
       customerRegion: recipient_billing_address.region,
       customerCountry: recipient_billing_address.country_name,
+      credit,
 
       productList: invoice_positions[0].tableList,
       currency: invoice_positions[0].currency,
