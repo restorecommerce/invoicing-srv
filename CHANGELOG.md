@@ -1,3 +1,8 @@
+## 0.2.9 (September 29th, 2022)
+
+- set credit flag if atleast one of the invoice position is negative
+- fix vat_id for recipient organization
+
 ## 0.2.8 (April 20th, 2022)
 
 - fix price calculation and added configurable due date for invoice
