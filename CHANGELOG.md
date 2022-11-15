@@ -1,3 +1,8 @@
+## 1.0.0 (November 15th, 2022)
+
+- migrate to fully typed client and server typings
+- updated dependencies
+
 ## 0.3.2 (July 8th, 2022)
 
 - updated dependencies
