@@ -6,8 +6,13 @@ import * as _ from 'lodash';
 import { RedisClientType } from 'redis';
 import { Readable, Transform } from 'stream';
 import { InvoiceNumberResponse } from './interfaces';
+import {
+  ServiceServiceImplementation,
+  InvoiceListResponse, InvoiceList
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice';
+import { ReadRequest, DeleteRequest } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/resource_base';
 
-export class InvoiceService extends ServiceBase {
+export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList> implements ServiceServiceImplementation {
   invoiceCount: number;
   redisClient: RedisClientType<any, any>;
   cfg: any;
@@ -123,11 +128,9 @@ export class InvoiceService extends ServiceBase {
     }
     this.logger.info('Response after storing the invoice from ostorage-srv', putResponse);
 
-    await super.create({
-      request: {
-        items: [invoice]
-      }
-    }, {});
+    await super.create(InvoiceList.fromPartial({
+      items: [invoice]
+    }), {});
 
     // deleted in-memory invoice if it exists
     await this.redisClient.del(`tmp_invoices:${invoice.invoice_number}`);
@@ -167,20 +170,18 @@ export class InvoiceService extends ServiceBase {
     const ownerUserURN = this.cfg.get('ownerAttributeKeys:ownerUserURN');
 
     for (let org of orgIDs) {
-      const result = await super.read({
-        request: {
-          custom_queries: ['filterByOwnership'],
-          custom_arguments: {
-            value: Buffer.from(JSON.stringify({
-              entity: ownerOrgURN,
-              instance: [org]
-            }))
-          }
+      const result = await super.read(ReadRequest.fromPartial({
+        custom_queries: ['filterByOwnership'],
+        custom_arguments: {
+          value: Buffer.from(JSON.stringify({
+            entity: ownerOrgURN,
+            instance: [org]
+          }))
         }
-      });
+      }), {});
       if (result?.operation_status?.code != 200) {
         this.logger.error('Error while filtering invoices by ownership',
-          result.error);
+          result);
         return;
       }
       let items = [];
@@ -189,20 +190,18 @@ export class InvoiceService extends ServiceBase {
     }
 
     for (let user of userIDs) {
-      const result = await super.read({
-        request: {
-          custom_queries: ['filterByOwnership'],
-          custom_arguments: {
-            value: Buffer.from(JSON.stringify({
-              entity: ownerUserURN,
-              instance: [user]
-            }))
-          }
+      const result = await super.read(ReadRequest.fromPartial({
+        custom_queries: ['filterByOwnership'],
+        custom_arguments: {
+          value: Buffer.from(JSON.stringify({
+            entity: ownerUserURN,
+            instance: [user]
+          }))
         }
-      });
+      }), {});
       if (result?.operation_status?.code != 200) {
         this.logger.error('Error while filtering invoices by ownership',
-          result.error);
+          result);
         return;
       }
       let items = [];
@@ -242,6 +241,6 @@ export class InvoiceService extends ServiceBase {
         }
       }
     }
-    await super.delete({ request: { ids: toDelete } });
+    await super.delete(DeleteRequest.fromPartial({ ids: toDelete }), {});
   }
 }

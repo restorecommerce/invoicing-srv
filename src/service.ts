@@ -7,20 +7,33 @@ import { InvoiceService } from './InvoiceResourceService';
 import {
   BillingAddress, EconomicAreas, InvoicePositions, RenderingStrategy
 } from './interfaces';
-import { Events, Topic } from '@restorecommerce/kafka-client';
+import { Events, Topic, registerProtoMeta } from '@restorecommerce/kafka-client';
 import {
   getJSONPaths, getPreviousMonth, marshallProtobufAny, requestID,
   storeInvoicePositions, unmarshallProtobufAny
 } from './utils';
-import { GrpcClient } from '@restorecommerce/grpc-client';
+import { createClient as grpcClient, createChannel } from '@restorecommerce/grpc-client';
 import { Logger } from 'winston';
 import { createLogger } from '@restorecommerce/logger';
 import { createServiceConfig } from '@restorecommerce/service-config';
 import { Arango } from '@restorecommerce/chassis-srv/lib/database/provider/arango/base';
+import { ServiceDefinition as InvoiceServiceDefinition, protoMetadata as invoiceMeta } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice';
+import {
+  ServiceDefinition as CommandInterfaceServiceDefinition,
+  protoMetadata as commandInterfaceMeta
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/commandinterface';
+import { ServiceDefinition as OstorageServiceDefinition } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/ostorage';
+import {
+  protoMetadata as reflectionMeta
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/grpc/reflection/v1alpha/reflection';
+import { ServerReflectionService } from 'nice-grpc-server-reflection';
+import { BindConfig } from '@restorecommerce/chassis-srv/lib/microservice/transport/provider/grpc';
+import { HealthDefinition } from '@restorecommerce/rc-grpc-clients/dist/generated-server/grpc/health/v1/health';
 
 const DELETE_ORG_DATA = 'deleteOrgData';
-
 export let billingService: BillingService;
+
+registerProtoMeta(invoiceMeta, commandInterfaceMeta, reflectionMeta);
 
 class BillingCommandInterface extends chassis.CommandInterface {
   constructor(server: chassis.Server, cfg: any, logger: Logger, events: Events,
@@ -274,31 +287,47 @@ export class BillingService {
 
     this.commandInterface = new BillingCommandInterface(this.server,
       this.cfg, this.logger, this.events, this.redisClient);
-    await this.server.bind(serviceNamesCfg.cis, this.commandInterface);
+    await this.server.bind(serviceNamesCfg.cis, {
+      service: CommandInterfaceServiceDefinition,
+      implementation: this.commandInterface
+    } as BindConfig<CommandInterfaceServiceDefinition>);
 
     // ostorage client to store billing pdfs
     const clientCfg = this.cfg.get('client:services:ostorage');
-    const client = new GrpcClient(clientCfg, this.logger);
-    const ostorageService = client.ostorage;
+    const channel = createChannel(clientCfg.address);
+    const logger = this.logger;
+    const ostorageService = grpcClient({
+      ...clientCfg,
+      logger
+    }, OstorageServiceDefinition, channel);
 
     this.invoiceService =
       new InvoiceService(this.cfg, db, this.events, this.logger,
         this.redisClient, this.topics.get('invoice.resource'), ostorageService);
-    await this.server.bind(serviceNamesCfg.billing, this.invoiceService);
+    await this.server.bind(serviceNamesCfg.billing, {
+      service: InvoiceServiceDefinition,
+      implementation: this.invoiceService
+    } as BindConfig<InvoiceServiceDefinition>);
 
-    // Add ReflectionService
+    // Add reflection service
     const reflectionServiceName = serviceNamesCfg.reflection;
-    const transportName = this.cfg.get(
-      `server:services:${reflectionServiceName}:serverReflectionInfo:transport:0`);
-    const transport = this.server.transport[transportName];
-    const reflectionService = new chassis.ServerReflection(transport.$builder,
-      this.server.config);
-    await this.server.bind(serviceNamesCfg.reflection, reflectionService);
+    const reflectionService = chassis.buildReflectionService([
+      { descriptor: invoiceMeta.fileDescriptor },
+      { descriptor: commandInterfaceMeta.fileDescriptor }
+    ]);
+    await this.server.bind(reflectionServiceName, {
+      service: ServerReflectionService,
+      implementation: reflectionService
+    });
+
 
     await this.server.bind(serviceNamesCfg.health,
-      new chassis.Health(this.commandInterface, {
-        readiness: async () => !!await ((db as Arango).db).version()
-      }));
+      {
+        service: HealthDefinition,
+        implementation: new chassis.Health(this.commandInterface, {
+          readiness: async () => !!await ((db as Arango).db).version()
+        })
+      } as BindConfig<HealthDefinition>);
 
     // load templates
     await this.loadTemplates();
