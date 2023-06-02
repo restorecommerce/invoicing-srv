@@ -17,12 +17,12 @@ import { Logger } from 'winston';
 import { createLogger } from '@restorecommerce/logger';
 import { createServiceConfig } from '@restorecommerce/service-config';
 import { Arango } from '@restorecommerce/chassis-srv/lib/database/provider/arango/base';
-import { ServiceDefinition as InvoiceServiceDefinition, protoMetadata as invoiceMeta } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice';
+import { InvoiceServiceDefinition, protoMetadata as invoiceMeta } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice';
 import {
-  ServiceDefinition as CommandInterfaceServiceDefinition,
+  CommandInterfaceServiceDefinition,
   protoMetadata as commandInterfaceMeta
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/commandinterface';
-import { ServiceDefinition as OstorageServiceDefinition } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/ostorage';
+import { ObjectServiceDefinition as OstorageServiceDefinition } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/ostorage';
 import {
   protoMetadata as reflectionMeta
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/grpc/reflection/v1alpha/reflection';

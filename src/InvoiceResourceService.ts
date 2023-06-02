@@ -7,12 +7,12 @@ import { RedisClientType } from 'redis';
 import { Readable, Transform } from 'stream';
 import { InvoiceNumberResponse } from './interfaces';
 import {
-  ServiceServiceImplementation,
+  InvoiceServiceImplementation,
   InvoiceListResponse, InvoiceList
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice';
 import { ReadRequest, DeleteRequest } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/resource_base';
 
-export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList> implements ServiceServiceImplementation {
+export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList> implements InvoiceServiceImplementation {
   invoiceCount: number;
   redisClient: RedisClientType<any, any>;
   cfg: any;
