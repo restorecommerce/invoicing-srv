@@ -463,7 +463,7 @@ export class BillingService {
     let vatText: string, showVAT = true, credit = false;
     // set credit to true, if there is atleast one negative value in the invoice position
     for (let ivp of invoice_positions) {
-      let rows = ivp.tableList;
+      let rows = ivp.invoiceRows;
       for (let row of rows) {
         if (row.amount < 0) {
           credit = true;
@@ -502,7 +502,7 @@ export class BillingService {
     let dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + dueDateDays);
     // iterate through invoice position and convert contract_start_date from snake case to camel case
-    invoice_positions[0]?.tableList.forEach(e => e.contractStartDate = (e as any).contract_start_date);
+    invoice_positions[0]?.invoiceRows.forEach(e => e.contractStartDate = (e as any).contract_start_date);
     let recipientOrgName = recipient_billing_address.organization_name ? recipient_billing_address.organization_name : recipient_organization.name;
     let invoiceNumber = invoice_no ? invoice_no : (await this.invoiceService.generateInvoiceNumber({})).invoice_no;
     const invoice = {
@@ -536,7 +536,7 @@ export class BillingService {
       customerCountry: recipient_billing_address.country_name,
       credit,
 
-      productList: invoice_positions[0].tableList,
+      productList: invoice_positions[0].invoiceRows,
       currency: invoice_positions[0].currency,
 
       subTotalGross,

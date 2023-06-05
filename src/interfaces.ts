@@ -8,7 +8,7 @@ export interface InvoiceRow {
 }
 
 export interface InvoiceRowSum {
-  tableList: InvoiceRow[];
+  invoiceRows: InvoiceRow[];
   totalPrice: InvoicePrice;
 }
 
@@ -75,7 +75,7 @@ export interface InvoicePositions {
 
 export interface InvoicePosition {
   currency: string;
-  tableList: InvoiceRow[];
+  invoiceRows: InvoiceRow[];
   totalPrice: InvoicePrice;
 }
 

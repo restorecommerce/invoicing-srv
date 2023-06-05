@@ -58,10 +58,10 @@ export const storeInvoicePositions = async (redisInvoicePosClient: RedisClientTy
         try {
           // extract msg Invoice positions and add to existing
           for (let eachInvoicePos of msg.invoice_positions) {
-            eachInvoicePos.tableList.forEach(e => listOfExistingInvoicePositions[0].tableList.push(e));
-            // listOfExistingInvoicePositions[0].tableList.push(...eachInvoicePos.tableList);
-            const newItems = eachInvoicePos.tableList;
-            // For each item in tableList based on vat and amount, caclulate and and gross and net
+            eachInvoicePos.invoiceRows.forEach(e => listOfExistingInvoicePositions[0].invoiceRows.push(e));
+            // listOfExistingInvoicePositions[0].invoiceRows.push(...eachInvoicePos.invoiceRows);
+            const newItems = eachInvoicePos.invoiceRows;
+            // For each item in invoiceRows based on vat and amount, caclulate and and gross and net
             newItems.forEach((item) => {
               const netPrice = item.amount;
               let tax: any = 0;

@@ -47,15 +47,17 @@ An Invoice resource.
 |===
 |Field |Type |Label |Description
 
-|id |string |required |User ID, unique, key
-|created |double |required |Date when user was created
-|modified |double |required |Date when user was modified
-|timestamp |string |required |Invoice creation timestamp
-|customer_id |string |required |The customer's database ID
-|payment_status |string |required |Default: 'unpaid'
-|amount |double |required |Invoice subtotal (gross).
-|document |string |required |Generated PDF base64-encoded
-|invoice_number |string |required |Generated invoice number
+|id |string |optional |User ID, unique, key
+|created |double |optional |Date when user was created
+|modified |double |optional |Date when user was modified
+|timestamp |string |optional |Invoice creation timestamp
+|customer_id |string |optional |The customer's database ID
+|payment_status |string |optional |Default: 'unpaid'
+|total_amount |double |optional |Invoice total (gross)
+|net_amount |double |optional |Invoice net
+|vat_amount |double |optional |Invoice vat
+|document |string |optional |Generated PDF base64-encoded
+|invoice_number |string |optional |Generated invoice number
 |customer_remark |string |optional |Customer's remark
 |===
 
@@ -75,14 +77,17 @@ To further read about their interface please refer to https://github.com/restore
 |===
 |Field |Type |Label |Description
 
-|id |string |required |contract or customer identifier
-|invoice_positions |`io.restorecommerce.invoice.InvoicePosition` [ ] |required |Invoice Position
-|recipient_customer |`io.restorecommerce.invoice.RecipientCustomer` |required |Recipient customer identifier
-|recipient_billing_address |`io.restorecommerce.invoice.BillingAddress` |required |Recipient Billing Address
-|sender_billing_address |`io.restorecommerce.invoice.BillingAddress` |required |Sender Billing Address
+|id |string |optional |contract or customer identifier
+|invoice_positions |`io.restorecommerce.invoice.InvoicePosition` [ ] |optional |Invoice Position
+|recipient_customer |`io.restorecommerce.invoice.RecipientCustomer` |optional |Recipient customer identifier
+|recipient_billing_address |`io.restorecommerce.invoice.BillingAddress` |optional |Recipient Billing Address
+|sender_billing_address |`io.restorecommerce.invoice.BillingAddress` |optional |Sender Billing Address
 |recipient_organization |`io.restorecommerce.organization.Organization` |optional |Recipient Organization Address
-|sender_organization |`io.restorecommerce.organization.Organization` |required |Sender Organization Address
+|sender_organization |`io.restorecommerce.organization.Organization` |optional |Sender Organization Address
 |payment_method_details |`io.restorecommerce.invoice.PaymentMethodDetails` |optional |Payment Method Details
+|invoice_no |string |optional |invoice number if not provided the service will generate one
+|from_date|double |optional |value performance from date
+|to_date|double |optional |value performance to date
 |===
 
 `io.restorecommerce.invoice.InvoicePosition`:
@@ -90,9 +95,9 @@ To further read about their interface please refer to https://github.com/restore
 |===
 |Field |Type |Label |Description
 
-|currency |string |required |currency
-|tableList |`io.restorecommerce.invoice.InvoiceRow` [ ] |required |Invoice row data
-|totalPrice |`io.restorecommerce.invoice.InvoicePrice` |required |Total price
+|currency |string |optional |currency
+|invoiceRows |`io.restorecommerce.invoice.InvoiceRow` [ ] |optional |Invoice row data
+|totalPrice |`io.restorecommerce.invoice.InvoicePrice` |optional |Total price
 |===
 
 `io.restorecommerce.invoice.InvoiceRow`:
@@ -100,11 +105,11 @@ To further read about their interface please refer to https://github.com/restore
 |===
 |Field |Type |Label |Description
 
-|product |string |required |currency
-|pricePerUnit |double |required |price per unit
-|quantity |integer |required |number of products
-|vat |string |required |value added tax
-|amount |double |required |total amount
+|product |string |optional |currency
+|pricePerUnit |double |optional |price per unit
+|quantity |integer |optional |number of products
+|vat |string |optional |value added tax
+|amount |double |optional |total amount
 |===
 
 `io.restorecommerce.invoice.InvoicePrice`:
@@ -112,8 +117,8 @@ To further read about their interface please refer to https://github.com/restore
 |===
 |Field |Type |Label |Description
 
-|gross |integer |required |gross price
-|net |integer |required |net price
+|gross |integer |optional |gross price
+|net |integer |optional |net price
 |===
 
 `io.restorecommerce.invoice.RecipientCustomer`:
@@ -121,7 +126,7 @@ To further read about their interface please refer to https://github.com/restore
 |===
 |Field |Type |Label |Description
 
-|id |string |required |customer identifier
+|id |string |optional |customer identifier
 |customer_number |string |optional |customer number
 |===
 
@@ -130,17 +135,17 @@ To further read about their interface please refer to https://github.com/restore
 |===
 |Field |Type |Label |Description
 
-|email |string |required |sender or recipient email
+|email |string |optional |sender or recipient email
 |website |string |optional |sender or recipient website
-|street |string |required |sender or recipient street name
-|building_number |string |required |sender or recipient building number
-|postcode |string |required |sender or recipient postcode
-|region |string |required |sender or recipient region
-|country_name |string |required |sender or recipient country
+|street |string |optional |sender or recipient street name
+|building_number |string |optional |sender or recipient building number
+|postcode |string |optional |sender or recipient postcode
+|region |string |optional |sender or recipient region
+|country_name |string |optional |sender or recipient country
 |phone_country_code |integer |optional |sender or recipient phone country code
 |phone_number |integer |optional |sender or recipient phone number
 |timezone |string |optional |sender or recipient time zone
-|economic_area |string |required |sender or recipient country economic area
+|economic_area |string |optional |sender or recipient country economic area
 |===
 
 `io.restorecommerce.invoice.PaymentMethodDetails`:
@@ -148,7 +153,7 @@ To further read about their interface please refer to https://github.com/restore
 |===
 |Field |Type |Label |Description
 
-|type |string |required |Payment Method identifier
+|type |string |optional |Payment Method identifier
 |iban |string |optional |Payment Method iban
 |bic |string |optional |Payment Method bic
 |bankName |string |optional |Payment Method bank name
@@ -161,7 +166,7 @@ To further read about their interface please refer to https://github.com/restore
 
 The microservice exposes the below CRUD operations for creating or modifying Invoice resources.
 
-`io.restorecommerce.invoice.Service`
+`io.restorecommerce.invoice.InvoiceService`
 
 [width="100%",cols="23%,25%,27%,25%",options="header",]
 |=========================================================================================================================
