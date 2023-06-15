@@ -154,11 +154,44 @@ export class BillingService {
     this['eventsListener'] = async (msg: any, context: any, config: any,
       eventName: string): Promise<any> => {
 
+      // Implement the gRPC service methods
+      let invoiceService = {
+        TriggerInvoices: async (call, callback) => {
+          try {
+            // Trigger invoices logic
+            await that.sendRenderRequests(call.request);
+            // Return success response
+            callback(null, { success: true });
+          } catch (error) {
+            // Emit error message
+            that.logger.error(error);
+            // Return error response
+            callback(error);
+          }
+        },
+        StoreInvoicePositions: async (call, callback) => {
+          try {
+            const eachInvoicePos = call.request;
+            that.logger.info(`Received message with event name storeInvoicePositions:`, { eachInvoicePos });
+            await storeInvoicePositions(that.redisInvoicePosClient, eachInvoicePos.id, eachInvoicePos, that.logger);
+            // Return success response
+            callback(null, { success: true });
+          } catch (error) {
+            // Emit error message
+            that.logger.error(error);
+            // Return error response
+            callback(error);
+          }
+        },
+      };
+
       switch (eventName) {
         case 'triggerInvoices':
+          await invoiceService.TriggerInvoices;
           await that.sendRenderRequests(msg);
           break;
         case 'storeInvoicePositions':
+          await invoiceService.StoreInvoicePositions;
           // store Invoice positions to redis - although an array is sent to kafka
           // it emits each object to kafka (just like for any normal resource)
           const eachInvoicePos = msg;

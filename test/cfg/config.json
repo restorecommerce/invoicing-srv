@@ -1,0 +1,233 @@
+{
+  "elastic-search": {
+    "client": {
+      "node": "http://elasticsearch:9200",
+      "log": [
+        "info",
+        "error"
+      ]
+    }
+  },
+  "database": {
+    "main": {
+      "provider": "arango",
+      "host": "localhost",
+      "port": 8529,
+      "database": "restorecommerce-invoice-srv",
+      "autoCreate": true,
+      "retries": 6,
+      "delay": 30000,
+      "collections": [
+        "invoice"
+      ],
+      "customQueries": [
+        {
+          "path": "filter_ownership.aql",
+          "name": "filterByOwnership",
+          "type": "filter"
+        }
+      ]
+    }
+  },
+  "traversal": {
+    "edges": {
+      "orgToParentOrg": "org_has_parent_org"
+    }
+  },
+  "redis": {
+    "url": "redis://localhost:6379",
+    "offsetStoreInterval": 1000,
+    "db-indexes": {
+      "db-offsetStore": 0,
+      "db-invoiceCounter": 2,
+      "db-invoicePositions": 9,
+      "db-fileStore": 14
+    }
+  },
+  "urns": {
+    "ownerEntity": "urn:restorecommerce:acs:names:ownerIndicatoryEntity",
+    "ownerInstance": "urn:restorecommerce:acs:names:ownerInstance",
+    "organization": "urn:restorecommerce:acs:model:organization.Organization",
+    "user": "urn:restorecommerce:acs:model:user.User"
+  },
+  "events": {
+    "kafka": {
+      "provider": "kafka",
+      "groupId": "restore-billing-srv",
+      "kafka": {
+        "clientId": "restore-billing-srv",
+        "brokers": [
+          "localhost:29092"
+        ]
+      },
+      "latestOffset": true,
+      "sendEmail": {
+        "messageObject": "io.restorecommerce.notification_req.NotificationReq"
+      },
+      "storeInvoicePositions": {
+        "messageObject": "io.restorecommerce.invoice.InvoicePositions"
+      },
+      "triggerInvoices": {
+        "messageObject": "io.restorecommerce.invoice.TriggerInvoices"
+      },
+      "deleteOrgData": {
+        "messageObject": "io.restorecommerce.organization.DeleteOrgData"
+      },
+      "renderRequest": {
+        "messageObject": "io.restorecommerce.rendering.RenderRequest"
+      },
+      "renderResponse": {
+        "messageObject": "io.restorecommerce.rendering.RenderResponse"
+      },
+      "healthCheckCommand": {
+        "messageObject": "io.restorecommerce.commandinterface.CommandRequest"
+      },
+      "healthCheckResponse": {
+        "messageObject": "io.restorecommerce.commandinterface.CommandResponse"
+      },
+      "versionCommand": {
+        "messageObject": "io.restorecommerce.commandinterface.CommandRequest"
+      },
+      "versionResponse": {
+        "messageObject": "io.restorecommerce.commandinterface.CommandResponse"
+      },
+      "restoreCommand": {
+        "messageObject": "io.restorecommerce.commandinterface.CommandRequest"
+      },
+      "restoreResponse": {
+        "messageObject": "io.restorecommerce.commandinterface.CommandRequest"
+      },
+      "resetCommand": {
+        "messageObject": "io.restorecommerce.commandinterface.CommandRequest"
+      },
+      "resetResponse": {
+        "messageObject": "io.restorecommerce.commandinterface.CommandResponse"
+      },
+      "invoiceCreated": {
+        "messageObject": "io.restorecommerce.invoice.Invoice"
+      },
+      "invoiceModified": {
+        "messageObject": "io.restorecommerce.invoice.Invoice"
+      },
+      "invoiceDeleted": {
+        "messageObject": "io.restorecommerce.resourcebase.DeleteRequest"
+      },
+      "queuedJob": {
+        "messageObject": "io.restorecommerce.job.ScheduledJob"
+      },
+      "jobDone": {
+        "messageObject": "io.restorecommerce.job.JobDone"
+      },
+      "jobFailed": {
+        "messageObject": "io.restorecommerce.job.JobFailed"
+      },
+      "topics": {
+        "notificationReq": {
+          "topic": "io.restorecommerce.notification_req"
+        },
+        "command": {
+          "topic": "io.restorecommerce.command",
+          "events": [
+            "healthCheckCommand",
+            "restoreCommand",
+            "resetCommand",
+            "versionCommand"
+          ]
+        },
+        "rendering": {
+          "topic": "io.restorecommerce.rendering",
+          "events": [
+            "renderResponse"
+          ]
+        },
+        "invoice.resource": {
+          "topic": "io.restorecommerce.invoices.resource",
+          "events": [
+            "storeInvoicePositions",
+            "triggerInvoices"
+          ]
+        },
+        "jobs": {
+          "topic": "io.restorecommerce.jobs"
+        },
+        "organization.resource": {
+          "topic": "io.restorecommerce.organizations.resource",
+          "events": [
+            "deleteOrgData"
+          ]
+        }
+      }
+    },
+    "enableEvents": true
+  },
+  "hbs_templates": {
+    "url": true,
+    "prefix": "http://localhost:8080/",
+    "templates": {
+      "subject": "invoicing-srv/templates/subject.hbs",
+      "body": "invoicing-srv/templates/body.hbs",
+      "attachment": "invoicing-srv/templates/attachment.hbs",
+      "resources": "invoicing-srv/templates/resources.json",
+      "layout": "invoicing-srv/templates/layout.hbs"
+    }
+  },
+  "client": {
+    "services": {
+      "ostorage": {
+        "address": "localhost:50066"
+      }
+    }
+  },
+  "pdf-rendering": {
+    "url": "http://localhost:3001/api/render",
+    "apiKey": "PDF_RENDERING_API_KEY",
+    "options": {
+      "pdf": {
+        "margin": {
+          "top": "40px",
+          "bottom": "50px",
+          "left": "25px",
+          "right": "25px"
+        },
+        "displayHeaderFooter": true,
+        "footerTemplateURL": "http://localhost:8080/invoicing-srv/templates/footer_template.html",
+        "headerTemplateURL": "http://localhost:8080/invoicing-srv/templates/header_template.html"
+      }
+    }
+  },
+  "invoiceFieldsGenerators": {
+    "invoice": {
+      "invoice_number": {
+        "strategy": "increment",
+        "startingValue": "10000"
+      }
+    }
+  },
+  "invoiceDueDateDays": 15,
+  "server": {
+    "transports": [
+      {
+        "name": "grpcBilling",
+        "provider": "grpc",
+        "addr": "localhost:50058"
+      }
+    ]
+  },
+  "serviceNames": {
+    "cis": "io-restorecommerce-invoicing-cis",
+    "billing": "io-restorecommerce-invoicing-srv",
+    "reflection": "io-restorecommerce-invoicing-reflection",
+    "health":  "grpc-health-v1"
+  },
+  "techUsers": [
+    {
+      "id": "upload_objects_user_id",
+      "token": "upload_objects_user_token"
+    }
+  ],
+  "mailServerCfg": {
+    "bcc": [
+      ""
+    ]
+  }
+}
