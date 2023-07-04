@@ -12,7 +12,7 @@ import {
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice';
 import { ReadRequest, DeleteRequest } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/resource_base';
 
-export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList> implements InvoiceServiceImplementation {
+export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList> implements InvoiceService {
   invoiceCount: number;
   redisClient: RedisClientType<any, any>;
   cfg: any;
@@ -44,6 +44,58 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
     this.logger = logger;
     this.ostorageService = ostorageService;
   }
+
+  async withdraw(call: any, ctx?: any): Promise<InvoiceListResponse> {
+    const context = call?.request?.context;
+    let count = await this.redisClient.get('invoices:invoice_number');
+    await this.redisClient.incr('invoices:invoice_number');
+    return {
+      items: context,
+      total_count: Number(count)
+    }
+  }
+
+  async render(call: any, ctx?: any): Promise<InvoiceListResponse> {
+    const context = call?.request?.context;
+    let count = await this.redisClient.get('invoices:invoice_number');
+    await this.redisClient.incr('invoices:invoice_number');
+    return {
+      items: context,
+      total_count: Number(count)
+    }
+  }
+
+  async send(call: any, ctx?: any): Promise<InvoiceListResponse> {
+    const context = call?.request?.context;
+    let count = await this.redisClient.get('invoices:invoice_number');
+    await this.redisClient.incr('invoices:invoice_number');
+    return {
+      items: context,
+      total_count: Number(count)
+    }
+  }
+
+    // gRPC version of the send method
+    async sendGRPC(call: any, callback: any): Promise<void> {
+      try {
+        const request = call.request;
+        const response = await this.send(request);
+        callback(null, response);
+      } catch (error) {
+        callback(error);
+      }
+    }
+
+  async create(call: any, ctx?: any): Promise<InvoiceListResponse> {
+    const context = call?.request?.context;
+    let count = await this.redisClient.get('invoices:invoice_number');
+    await this.redisClient.incr('invoices:invoice_number');
+    return {
+      items: context,
+      total_count: Number(count)
+    }
+  }
+
 
   async generateInvoiceNumber(call: any, ctx?: any): Promise<InvoiceNumberResponse> {
     const context = call?.request?.context;
@@ -155,9 +207,11 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
     const results = await super.read(call, context);
 
     for (let itemObj of results.items) {
-      if (itemObj?.payload?.document) {
-        itemObj.payload.document =
-          Buffer.from(itemObj.payload.document, 'base64').toString();
+      if (itemObj?.payload?.documents) {
+        for (let doc of itemObj?.payload?.documents) {
+          doc.id =
+            Buffer.from(doc.id, 'base64').toString();
+        }
       }
     }
 
