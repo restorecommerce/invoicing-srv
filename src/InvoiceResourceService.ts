@@ -45,6 +45,7 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
     this.ostorageService = ostorageService;
   }
 
+  // TODO Mark invoices as withdrawn
   async withdraw(call: any, ctx?: any): Promise<InvoiceListResponse> {
     const context = call?.request?.context;
     let count = await this.redisClient.get('invoices:invoice_number');
@@ -55,6 +56,7 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
     }
   }
 
+  // TODO Should Evaluates and (re-)Renders invoices as PDF to ostorage. (creates if not exist, updates if id is given)
   async render(call: any, ctx?: any): Promise<InvoiceListResponse> {
     const context = call?.request?.context;
     let count = await this.redisClient.get('invoices:invoice_number');
@@ -65,6 +67,7 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
     }
   }
 
+  // TODO Triggers notification-srv (sends invoice per email for instance) 
   async send(call: any, ctx?: any): Promise<InvoiceListResponse> {
     const context = call?.request?.context;
     let count = await this.redisClient.get('invoices:invoice_number');
@@ -75,26 +78,33 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
     }
   }
 
-    // gRPC version of the send method
-    async sendGRPC(call: any, callback: any): Promise<void> {
-      try {
-        const request = call.request;
-        const response = await this.send(request);
-        callback(null, response);
-      } catch (error) {
-        callback(error);
-      }
-    }
+    // What is this for ?
+    // // gRPC version of the send method
+    // async sendGRPC(call: any, callback: any): Promise<void> {
+    //   try {
+    //     const request = call.request;
+    //     const response = await this.send(request);
+    //     callback(null, response);
+    //   } catch (error) {
+    //     callback(error);
+    //   }
+    // }
 
   async create(call: any, ctx?: any): Promise<InvoiceListResponse> {
     const context = call?.request?.context;
     let count = await this.redisClient.get('invoices:invoice_number');
-    await this.redisClient.incr('invoices:invoice_number');
+    // await this.redisClient.incr('invoices:invoice_number');
+    // TODO YOU need to create a Invoice and store it to Invoice ArangoDB.
+    // Also upload PDF to OSS
     return {
       items: context,
       total_count: Number(count)
     }
   }
+
+  // TODO
+  // UPDATE UPSERT -> UPDATES or UPSERTS INVOICE Resources
+  // DELETE -> Should DELETE Invoice Resource
 
 
   async generateInvoiceNumber(call: any, ctx?: any): Promise<InvoiceNumberResponse> {
