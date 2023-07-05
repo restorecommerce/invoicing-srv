@@ -49,11 +49,13 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
   async withdraw(call: any, ctx?: any): Promise<InvoiceListResponse> {
     const context = call?.request?.context;
     let count = await this.redisClient.get('invoices:invoice_number');
-    await this.redisClient.incr('invoices:invoice_number');
+    await this.redisClient.set('invoices:withdrawn', 'true').catch(err => {
+      this.logger.error('Error marking invoices as withdrwn');
+    });
     return {
       items: context,
       total_count: Number(count)
-    }
+    };
   }
 
   // TODO Should Evaluates and (re-)Renders invoices as PDF to ostorage. (creates if not exist, updates if id is given)
@@ -64,31 +66,32 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
     return {
       items: context,
       total_count: Number(count)
-    }
+    };
   }
 
-  // TODO Triggers notification-srv (sends invoice per email for instance) 
+  // TODO Triggers notification-srv (sends invoice per email for instance)
   async send(call: any, ctx?: any): Promise<InvoiceListResponse> {
     const context = call?.request?.context;
+    let email = call?.request?.billingAddress?.contact?.email;
     let count = await this.redisClient.get('invoices:invoice_number');
-    await this.redisClient.incr('invoices:invoice_number');
+
     return {
       items: context,
       total_count: Number(count)
-    }
+    };
   }
 
-    // What is this for ?
-    // // gRPC version of the send method
-    // async sendGRPC(call: any, callback: any): Promise<void> {
-    //   try {
-    //     const request = call.request;
-    //     const response = await this.send(request);
-    //     callback(null, response);
-    //   } catch (error) {
-    //     callback(error);
-    //   }
-    // }
+  // What is this for ?
+  // // gRPC version of the send method
+  // async sendGRPC(call: any, callback: any): Promise<void> {
+  //   try {
+  //     const request = call.request;
+  //     const response = await this.send(request);
+  //     callback(null, response);
+  //   } catch (error) {
+  //     callback(error);
+  //   }
+  // }
 
   async create(call: any, ctx?: any): Promise<InvoiceListResponse> {
     const context = call?.request?.context;
@@ -96,15 +99,53 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
     // await this.redisClient.incr('invoices:invoice_number');
     // TODO YOU need to create a Invoice and store it to Invoice ArangoDB.
     // Also upload PDF to OSS
+    let listItems = call?.request?.items;
+    await super.create(listItems, context);
+    await this.saveInvoice(call?.requestID, call?.document, call?.filename);
     return {
-      items: context,
+      items: listItems,
       total_count: Number(count)
-    }
+    };
   }
 
   // TODO
   // UPDATE UPSERT -> UPDATES or UPSERTS INVOICE Resources
   // DELETE -> Should DELETE Invoice Resource
+
+  async upsert(call: any, ctx?: any): Promise<InvoiceListResponse> {
+    const context = call?.request?.context;
+    let count = await this.redisClient.get('invoices:invoice_number');
+    await this.redisClient.incr('invoices:invoice_number');
+    let listItems = call?.request?.items;
+    await super.upsert(listItems, context);
+    return {
+      items: listItems,
+      total_count: Number(count)
+    };
+  }
+
+  async update(call: any, ctx?: any): Promise<InvoiceListResponse> {
+    const context = call?.request?.context;
+    let count = await this.redisClient.get('invoices:invoice_number');
+    await this.redisClient.incr('invoices:invoice_number');
+    let listItems = call?.request?.items;
+    await super.update(listItems, context);
+    return {
+      items: listItems,
+      total_count: Number(count)
+    };
+  }
+
+  async delete(call: any, ctx?: any): Promise<InvoiceListResponse> {
+    const context = call?.request?.context;
+    let count = await this.redisClient.get('invoices:invoice_number');
+    let listItems = call?.request?.items;
+    await super.delete(listItems, context);
+    return {
+      items: listItems,
+      total_count: Number(count)
+    };
+  }
 
 
   async generateInvoiceNumber(call: any, ctx?: any): Promise<InvoiceNumberResponse> {

@@ -154,11 +154,11 @@ export class BillingService {
     this['eventsListener'] = async (msg: any, context: any, config: any,
       eventName: string): Promise<any> => {
       switch (eventName) {
-        case 'Send':
+        case 'triggerInvoices':
           // await invoiceService.TriggerInvoices;
           await that.sendRenderRequests(msg);
           break;
-        case 'Create':
+        case 'storeInvoicePositions':
           // await invoiceService.StoreInvoicePositions;
           // store Invoice positions to redis - although an array is sent to kafka
           // it emits each object to kafka (just like for any normal resource)
@@ -168,7 +168,7 @@ export class BillingService {
           await storeInvoicePositions(that.redisInvoicePosClient,
             eachInvoicePos.id, eachInvoicePos, that.logger);
           break;
-        case 'Render':
+        case 'renderResponse':
           try {
             const reqID = msg.id;
             this.logger.debug('Processing render response for', { id: msg.id });
