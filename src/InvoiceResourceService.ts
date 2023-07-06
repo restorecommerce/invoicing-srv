@@ -11,6 +11,8 @@ import {
   InvoiceListResponse, InvoiceList
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice';
 import { ReadRequest, DeleteRequest } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/resource_base';
+import { billingService } from './service';
+import { PDFRenderer } from 'pdf-renderer-library';
 
 export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList> implements InvoiceService {
   invoiceCount: number;
@@ -59,24 +61,64 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
   }
 
   // TODO Should Evaluates and (re-)Renders invoices as PDF to ostorage. (creates if not exist, updates if id is given)
+  // async render(call: any, ctx?: any): Promise<InvoiceListResponse> {
+  //   const context = call?.request?.context;
+  //   let count = await this.redisClient.get('invoices:invoice_number');
+  //   await this.redisClient.incr('invoices:invoice_number');
+  //   return {
+  //     items: context,
+  //     total_count: Number(count)
+  //   };
+  // }
+
   async render(call: any, ctx?: any): Promise<InvoiceListResponse> {
     const context = call?.request?.context;
     let count = await this.redisClient.get('invoices:invoice_number');
-    await this.redisClient.incr('invoices:invoice_number');
+    const invoiceNumber = await this.redisClient.incr('invoices:invoice_number');
+
+    // Render the invoice as a PDF
+    const pdfRenderer = new PDFRenderer(); // Initialize the PDF renderer
+    const invoicePdf = await pdfRenderer.renderInvoice(context); // Render the invoice using the context data
+
+    // Save the PDF to storage
+    const storageId = call?.request?.storageId;
+    if (storageId) {
+      // If a storageId is provided, update the existing PDF in storage
+      await this.updatePdfInStorage(storageId, call.request.requestID, invoicePdf, call.request.fileName);
+    } else {
+      // If no storageId is provided, create a new PDF in storage
+      const newStorageId = await this.createPdfInStorage(call.request.requestID, invoicePdf, call.request.fileName);
+      // call?.request?.storageId = newStorageId; // Update the storageId in the call object
+    }
+
     return {
       items: context,
       total_count: Number(count)
     };
   }
 
+  async createPdfInStorage(requestID: string, invoicePdf: Buffer, fileName): Promise<any> {
+    this.saveInvoice(requestID, invoicePdf, fileName);
+    // Logic to create a new PDF in storage and return the storageId
+    // ...
+  }
+
+  async updatePdfInStorage(storageId: string, requestID: string, invoicePdf: Buffer, fileName): Promise<void> {
+    this.saveInvoice(requestID, invoicePdf, fileName);
+    // Logic to update the existing PDF in storage with the provided storageId
+    // ...
+  }
+
   // TODO Triggers notification-srv (sends invoice per email for instance)
   async send(call: any, ctx?: any): Promise<InvoiceListResponse> {
     const context = call?.request?.context;
+    let listItems = call?.request?.items;
     let email = call?.request?.billingAddress?.contact?.email;
+    billingService.sendInvoiceEmail(call.subject, call.body, call.invoice, email, call.invoice_number, call.org_userID);
     let count = await this.redisClient.get('invoices:invoice_number');
 
     return {
-      items: context,
+      items: listItems,
       total_count: Number(count)
     };
   }
