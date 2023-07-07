@@ -88,7 +88,7 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
     } else {
       // If no storageId is provided, create a new PDF in storage
       const newStorageId = await this.createPdfInStorage(call.request.requestID, invoicePdf, call.request.fileName);
-      // call?.request?.storageId = newStorageId; // Update the storageId in the call object
+      call.request.storageId = newStorageId; // Update the storageId in the call object
     }
 
     return {
@@ -98,13 +98,14 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
   }
 
   async createPdfInStorage(requestID: string, invoicePdf: Buffer, fileName): Promise<any> {
-    this.saveInvoice(requestID, invoicePdf, fileName);
+    return this.saveInvoice(requestID, invoicePdf, fileName);
+    
     // Logic to create a new PDF in storage and return the storageId
     // ...
   }
 
   async updatePdfInStorage(storageId: string, requestID: string, invoicePdf: Buffer, fileName): Promise<void> {
-    this.saveInvoice(requestID, invoicePdf, fileName);
+    return this.saveInvoice(storageId, invoicePdf, fileName);
     // Logic to update the existing PDF in storage with the provided storageId
     // ...
   }
