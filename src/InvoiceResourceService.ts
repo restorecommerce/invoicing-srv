@@ -12,7 +12,7 @@ import {
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice';
 import { ReadRequest, DeleteRequest } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/resource_base';
 import { billingService } from './service';
-import { PDFRenderer } from 'pdf-renderer-library';
+import { DeepPartial } from '@restorecommerce/kafka-client/lib/protos';
 
 export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList> implements InvoiceService {
   invoiceCount: number;
@@ -48,8 +48,8 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
   }
 
   // TODO Mark invoices as withdrawn
-  async withdraw(call: any, ctx?: any): Promise<InvoiceListResponse> {
-    const context = call?.request?.context;
+  async withdraw(request: InvoiceList, context?: any): Promise<InvoiceListResponse> {
+    // const context = call?.request?.context;
     let count = await this.redisClient.get('invoices:invoice_number');
     await this.redisClient.set('invoices:withdrawn', 'true').catch(err => {
       this.logger.error('Error marking invoices as withdrwn');
@@ -71,43 +71,50 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
   //   };
   // }
 
-  async render(call: any, ctx?: any): Promise<InvoiceListResponse> {
-    const context = call?.request?.context;
+  async render(request: InvoiceList, context?: any): Promise<DeepPartial<InvoiceListResponse>> {
+
+    // request = await this.setInoviceNumbers(request);
+
     let count = await this.redisClient.get('invoices:invoice_number');
-    const invoiceNumber = await this.redisClient.incr('invoices:invoice_number');
+    const invoice_number = await this.redisClient.incr('invoices:invoice_number');
+
+
+    request.items = await Promise.all(request.items.map(async item => {
+      // const html = this.convertToHtml();
+      const pdf = await billingService.renderPDF(item.documents[0].bytes);
+      const file = await this.saveInvoice(item.id, pdf, item.invoice_number);
+      item.documents.push(file);
+      return item;
+    }));
+    return await this.upsert(request, context);
 
     // Render the invoice as a PDF
-    const pdfRenderer = new PDFRenderer(); // Initialize the PDF renderer
-    const invoicePdf = await pdfRenderer.renderInvoice(context); // Render the invoice using the context data
+    // Render the invoice using the context data
+    // const invoicePdf = await billingService.renderPDF(request);
 
-    // Save the PDF to storage
-    const storageId = call?.request?.storageId;
-    if (storageId) {
-      // If a storageId is provided, update the existing PDF in storage
-      await this.updatePdfInStorage(storageId, call.request.requestID, invoicePdf, call.request.fileName);
-    } else {
-      // If no storageId is provided, create a new PDF in storage
-      const newStorageId = await this.createPdfInStorage(call.request.requestID, invoicePdf, call.request.fileName);
-      call.request.storageId = newStorageId; // Update the storageId in the call object
-    }
+    // // Save the PDF to storage
+    // const storageId = call?.request?.storageId;
+    // if (storageId) {
+    //   // If a storageId is provided, update the existing PDF in storage
+    //   await this.updatePdfInStorage(storageId, call.request.requestID, invoicePdf, call.request.fileName);
+    // } else {
+    //   // If no storageId is provided, create a new PDF in storage
+    //   const newStorageId = await this.createPdfInStorage(call.request.requestID, invoicePdf, call.request.fileName);
+    //   call.request.storageId = newStorageId; // Update the storageId in the call object
+    // }
 
-    return {
-      items: context,
-      total_count: Number(count)
-    };
+    // return {
+    //   items: context,
+    //   total_count: Number(count)
+    // };
   }
 
   async createPdfInStorage(requestID: string, invoicePdf: Buffer, fileName): Promise<any> {
     return this.saveInvoice(requestID, invoicePdf, fileName);
-    
-    // Logic to create a new PDF in storage and return the storageId
-    // ...
   }
 
   async updatePdfInStorage(storageId: string, requestID: string, invoicePdf: Buffer, fileName): Promise<void> {
     return this.saveInvoice(storageId, invoicePdf, fileName);
-    // Logic to update the existing PDF in storage with the provided storageId
-    // ...
   }
 
   // TODO Triggers notification-srv (sends invoice per email for instance)
@@ -115,7 +122,7 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
     const context = call?.request?.context;
     let listItems = call?.request?.items;
     let email = call?.request?.billingAddress?.contact?.email;
-    billingService.sendInvoiceEmail(call.subject, call.body, call.invoice, email, call.invoice_number, call.org_userID);
+    await billingService.sendInvoiceEmail(call.subject, call.body, call.invoice, email, call.invoice_number, call.org_userID);
     let count = await this.redisClient.get('invoices:invoice_number');
 
     return {
@@ -136,60 +143,13 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
   //   }
   // }
 
-  async create(call: any, ctx?: any): Promise<InvoiceListResponse> {
-    const context = call?.request?.context;
-    let count = await this.redisClient.get('invoices:invoice_number');
-    // await this.redisClient.incr('invoices:invoice_number');
-    // TODO YOU need to create a Invoice and store it to Invoice ArangoDB.
-    // Also upload PDF to OSS
-    let listItems = call?.request?.items;
-    await super.create(listItems, context);
-    await this.saveInvoice(call?.requestID, call?.document, call?.filename);
-    return {
-      items: listItems,
-      total_count: Number(count)
-    };
+  async create(request: InvoiceList, context?: any): Promise<DeepPartial<InvoiceListResponse>> {
+    await Promise.all(request.items.map(async item => {
+      item.invoice_number ??= await this.redisClient.get('invoinces:invoice_number');
+    }));
+    const response = await super.create(request, context);
+    return response;
   }
-
-  // TODO
-  // UPDATE UPSERT -> UPDATES or UPSERTS INVOICE Resources
-  // DELETE -> Should DELETE Invoice Resource
-
-  async upsert(call: any, ctx?: any): Promise<InvoiceListResponse> {
-    const context = call?.request?.context;
-    let count = await this.redisClient.get('invoices:invoice_number');
-    await this.redisClient.incr('invoices:invoice_number');
-    let listItems = call?.request?.items;
-    await super.upsert(listItems, context);
-    return {
-      items: listItems,
-      total_count: Number(count)
-    };
-  }
-
-  async update(call: any, ctx?: any): Promise<InvoiceListResponse> {
-    const context = call?.request?.context;
-    let count = await this.redisClient.get('invoices:invoice_number');
-    await this.redisClient.incr('invoices:invoice_number');
-    let listItems = call?.request?.items;
-    await super.update(listItems, context);
-    return {
-      items: listItems,
-      total_count: Number(count)
-    };
-  }
-
-  async delete(call: any, ctx?: any): Promise<InvoiceListResponse> {
-    const context = call?.request?.context;
-    let count = await this.redisClient.get('invoices:invoice_number');
-    let listItems = call?.request?.items;
-    await super.delete(listItems, context);
-    return {
-      items: listItems,
-      total_count: Number(count)
-    };
-  }
-
 
   async generateInvoiceNumber(call: any, ctx?: any): Promise<InvoiceNumberResponse> {
     const context = call?.request?.context;
