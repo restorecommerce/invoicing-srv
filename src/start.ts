@@ -4,7 +4,7 @@ const Cluster = require('@restorecommerce/cluster-service');
 const cfg = createServiceConfig(process.cwd());
 const server = new Cluster(cfg);
 
-server.run('./lib/service.js');
+server.run('./lib/worker.js');
 process.on('SIGINT', () => {
   server.stop();
 });
