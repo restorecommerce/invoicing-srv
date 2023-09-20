@@ -9,7 +9,7 @@
     "url": "https://github.com/restorecommerce/invoicing-srv.git"
   },
   "dependencies": {
-    "@restorecommerce/chassis-srv": "^1.2.1",
+    "@restorecommerce/chassis-srv": "^1.3.1",
     "@restorecommerce/cluster-service": "^1.0.2",
     "@restorecommerce/kafka-client": "^1.0.8",
     "@restorecommerce/logger": "^1.2.1",
