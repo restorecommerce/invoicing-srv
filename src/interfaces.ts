@@ -87,7 +87,3 @@ export interface PaymentMethodDetails {
   transferType?: string;
   eMail?: string; // in case of PayPal
 }
-
-export interface InvoiceNumberResponse {
-  invoice_no: string;
-}
