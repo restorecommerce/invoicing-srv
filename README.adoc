@@ -15,4 +15,4 @@ Part of link:https://github.com/restorecommerce[Restorecommerce].
 
 == Contributing
 
-Read more in link:{docdir}/CONTRIBUTING.md}[CONTRIBUTING.md]
+Read more in link:{docdir}/CONTRIBUTING.md[CONTRIBUTING.md]
