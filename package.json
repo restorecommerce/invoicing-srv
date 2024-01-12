@@ -54,7 +54,7 @@
     "build:tsc": "tsc -d",
     "build:clean": "rimraf lib",
     "build": "npm-run-all lint build:clean build:tsc",
-    "prepare": "husky install"
+    "prepare": "node -e \"try { require('husky').install() } catch (e) {}\""
   },
   "engines": {
     "node": ">= 18.2.0"
