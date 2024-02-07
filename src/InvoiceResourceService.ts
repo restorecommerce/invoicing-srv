@@ -2,15 +2,17 @@ import {
   ResourcesAPIBase, ServiceBase
 } from '@restorecommerce/resource-base-interface';
 import { Events, Topic } from '@restorecommerce/kafka-client';
-import * as _ from 'lodash';
+import _ from 'lodash-es';
 import { RedisClientType } from 'redis';
-import { Readable, Transform } from 'stream';
-import { InvoiceNumberResponse } from './interfaces';
+import { Readable, Transform } from 'node:stream';
+import { InvoiceNumberResponse } from './interfaces.js';
 import {
   InvoiceServiceImplementation,
-  InvoiceListResponse, InvoiceList
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice';
-import { ReadRequest, DeleteRequest } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/resource_base';
+  InvoiceListResponse, InvoiceList,
+  InvoiceIdList, DeepPartial,
+  StatusListResponse
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice.js';
+import { ReadRequest, DeleteRequest } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/resource_base.js';
 
 export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList> implements InvoiceServiceImplementation {
   invoiceCount: number;
@@ -242,5 +244,17 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
       }
     }
     await super.delete(DeleteRequest.fromPartial({ ids: toDelete }), {});
+  }
+
+  render(request: InvoiceList, context: any): Promise<DeepPartial<InvoiceListResponse>> {
+    throw new Error('not implemented');
+  }
+
+  send(request: InvoiceIdList, context: any): Promise<DeepPartial<StatusListResponse>> {
+    throw new Error('not implemented');
+  }
+
+  withdraw(request: InvoiceIdList, context: any): Promise<DeepPartial<InvoiceListResponse>> {
+    throw new Error('not implemented');
   }
 }

@@ -1,34 +1,34 @@
-import * as _ from 'lodash';
+import _ from 'lodash-es';
 import * as chassis from '@restorecommerce/chassis-srv';
 import fetch from 'node-fetch';
 import MemoryStream from 'memorystream';
 import { createClient, RedisClientType } from 'redis';
-import { InvoiceService } from './InvoiceResourceService';
+import { InvoiceService } from './InvoiceResourceService.js';
 import {
   BillingAddress, EconomicAreas, InvoicePositions, RenderingStrategy
-} from './interfaces';
+} from './interfaces.js';
 import { Events, Topic, registerProtoMeta } from '@restorecommerce/kafka-client';
 import {
   getJSONPaths, getPreviousMonth, marshallProtobufAny, requestID,
   storeInvoicePositions, unmarshallProtobufAny
-} from './utils';
+} from './utils.js';
 import { createClient as grpcClient, createChannel } from '@restorecommerce/grpc-client';
 import { Logger } from 'winston';
 import { createLogger } from '@restorecommerce/logger';
 import { createServiceConfig } from '@restorecommerce/service-config';
-import { Arango } from '@restorecommerce/chassis-srv/lib/database/provider/arango/base';
-import { InvoiceServiceDefinition, protoMetadata as invoiceMeta } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice';
+import { Arango } from '@restorecommerce/chassis-srv/lib/database/provider/arango/base.js';
+import { InvoiceServiceDefinition, protoMetadata as invoiceMeta } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice.js';
 import {
   CommandInterfaceServiceDefinition,
   protoMetadata as commandInterfaceMeta
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/commandinterface';
-import { ObjectServiceDefinition as OstorageServiceDefinition } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/ostorage';
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/commandinterface.js';
+import { ObjectServiceDefinition as OstorageServiceDefinition } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/ostorage.js';
 import {
   protoMetadata as reflectionMeta
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/grpc/reflection/v1alpha/reflection';
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/grpc/reflection/v1alpha/reflection.js';
 import { ServerReflectionService } from 'nice-grpc-server-reflection';
-import { BindConfig } from '@restorecommerce/chassis-srv/lib/microservice/transport/provider/grpc';
-import { HealthDefinition } from '@restorecommerce/rc-grpc-clients/dist/generated-server/grpc/health/v1/health';
+import { BindConfig } from '@restorecommerce/chassis-srv/lib/microservice/transport/provider/grpc.js';
+import { HealthDefinition } from '@restorecommerce/rc-grpc-clients/dist/generated-server/grpc/health/v1/health.js';
 
 const DELETE_ORG_DATA = 'deleteOrgData';
 export let billingService: BillingService;
@@ -307,7 +307,7 @@ export class BillingService {
     await this.server.bind(serviceNamesCfg.billing, {
       service: InvoiceServiceDefinition,
       implementation: this.invoiceService
-    } as BindConfig<InvoiceServiceDefinition>);
+    } as unknown as BindConfig<InvoiceServiceDefinition>);
 
     // Add reflection service
     const reflectionServiceName = serviceNamesCfg.reflection;
@@ -745,26 +745,4 @@ export class BillingService {
     await this.events.stop();
     await this.offsetStore.stop();
   }
-}
-
-if (require.main === module) {
-  const cfg = createServiceConfig(process.cwd());
-  const loggerCfg = cfg.get('logger');
-  loggerCfg.esTransformer = (msg) => {
-    msg.fields = JSON.stringify(msg.fields);
-    return msg;
-  };
-  const logger = createLogger(loggerCfg);
-  const service = new BillingService(cfg, logger);
-  service.start().catch((err) => {
-    console.error('client error', err.stack);
-    process.exit(1);
-  });
-
-  process.on('SIGINT', () => {
-    service.stop().catch((err) => {
-      console.error('shutdown error', err);
-      process.exit(1);
-    });
-  });
 }

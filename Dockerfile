@@ -28,9 +28,6 @@ USER node
 ARG APP_HOME=/home/node/srv
 WORKDIR $APP_HOME
 
-COPY package.json package.json
-COPY package-lock.json package-lock.json
-
 COPY filter_ownership.aql $APP_HOME/filter_ownership.aql
 COPY cfg $APP_HOME/cfg
 
@@ -41,4 +38,4 @@ EXPOSE 50051
 USER root
 USER node
 
-CMD [ "npm", "start" ]
+CMD [ "node", "lib/start.js" ]

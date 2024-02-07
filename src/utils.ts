@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { InvoicePositions, InvoicePrice } from './interfaces';
+import { InvoicePositions, InvoicePrice } from './interfaces.js';
 import { RedisClientType } from 'redis';
 
 
