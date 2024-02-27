@@ -47,11 +47,11 @@
     "typescript": "^5.3.3"
   },
   "scripts": {
-    "start": "node lib/start.js",
+    "start": "node lib/start.cjs",
     "dev": "cross-env NODE_ENV=development nodemon --watch './src/**/*.ts' --exec node --loader ts-node/esm ./src/start.ts",
     "test": "npm run lint && npm run build",
     "lint": "eslint src --ext .ts",
-    "build:tsc": "esbuild ./src/start.ts --bundle --platform=node --outfile=lib/start.js --minify --tree-shaking=true --sourcemap=inline",
+    "build:tsc": "esbuild ./src/start.ts --bundle --platform=node --outfile=lib/start.cjs --minify --tree-shaking=true --sourcemap=inline",
     "build:clean": "rimraf lib",
     "build": "npm-run-all lint build:clean build:tsc",
     "prepare": "node -e \"try { require('husky').install() } catch (e) {}\""
