@@ -125,8 +125,8 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
       // content-type is `application/pdf` for invoices
       putResponse = await this.ostorageService.put(stream.pipe(transformBuffObj()));
     } catch (err) {
-      this.logger.info('Error storing the invoice to ostorage-srv:',
-        { error: err.message });
+      this.logger.info('Error storing the invoice to ostorage-srv',
+        { code: err.code, message: err.message, stack: err.stack });
     }
     this.logger.info('Response after storing the invoice from ostorage-srv', putResponse);
 
