@@ -39,7 +39,7 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
       }
     }
     ).catch(err => {
-      logger.error('Error getting invoice number from redis', err);
+      logger.error('Error getting invoice number from redis', { code: err.code, message: err.message, stack: err.stack });
     });
     this.redisClient = redisClient;
     this.cfg = cfg;
