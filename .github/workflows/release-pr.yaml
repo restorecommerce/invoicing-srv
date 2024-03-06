@@ -13,7 +13,7 @@ jobs:
     permissions:
       issues: write
       pull-requests: write
-      contents: read
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +31,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -ex
           echo '# Release Changes' > changes.md
           npx semantic-release@22.0.12 -d -p '@semantic-release/release-notes-generator' -b next | grep -v semantic-release | tee -a changes.md
           printf '\n---\n\n### Approve this PR to release above packages!' >> changes.md
