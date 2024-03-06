@@ -19,6 +19,8 @@ jobs:
           git checkout master
           git merge --ff origin/next
           git push -u origin master
-      - uses: peter-evans/repository-dispatch@v3
+
+      - uses: benc-uk/workflow-dispatch@v1
         with:
-          event-type: release_master
+          workflow: release.yaml
+          ref: master

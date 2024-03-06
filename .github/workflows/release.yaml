@@ -4,8 +4,7 @@ on:
   push:
     branches:
       - master
-  repository_dispatch:
-    types: [release_master]
+  workflow_dispatch:
 
 permissions:
   contents: read
