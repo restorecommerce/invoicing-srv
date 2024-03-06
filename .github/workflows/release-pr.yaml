@@ -32,6 +32,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -ex
+          env
           echo '# Release Changes' > changes.md
           npx semantic-release@22.0.12 -d -p '@semantic-release/release-notes-generator' -b next | grep -v semantic-release | tee -a changes.md
           printf '\n---\n\n### Approve this PR to release above packages!' >> changes.md
