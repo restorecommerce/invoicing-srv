@@ -6,7 +6,7 @@
   "author": "n-fuse GmbH",
   "repository": {
     "type": "git",
-    "url": "git@github.com:restorecommerce/invoicing-srv.git"
+    "url": "https://github.com/restorecommerce/invoicing-srv.git"
   },
   "dependencies": {
     "@restorecommerce/chassis-srv": "^1.4.8",
