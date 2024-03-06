@@ -62,8 +62,6 @@ jobs:
       - name: Install Dependencies
         run: npm clean-install
 
-      - run: npx semantic-release@22.0.12
+      - run: npx semantic-release@22.0.12 -b $GITHUB_REF_NAME
         env:
-          GITHUB_REF: refs/heads/master
-          GITHUB_REF_NAME: master
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
