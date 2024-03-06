@@ -64,4 +64,6 @@ jobs:
 
       - run: npx semantic-release@22.0.12
         env:
+          GITHUB_REF: refs/heads/master
+          GITHUB_REF_NAME: master
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
