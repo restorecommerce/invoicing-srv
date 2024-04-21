@@ -9,12 +9,12 @@
     "url": "https://github.com/restorecommerce/invoicing-srv.git"
   },
   "dependencies": {
-    "@restorecommerce/chassis-srv": "^1.5.0",
+    "@restorecommerce/chassis-srv": "^1.6.0",
     "@restorecommerce/kafka-client": "^1.2.1",
     "@restorecommerce/logger": "^1.2.10",
-    "@restorecommerce/protos": "^6.8.1",
+    "@restorecommerce/protos": "^6.8.2",
     "@restorecommerce/rc-grpc-clients": "^5.1.23",
-    "@restorecommerce/resource-base-interface": "^1.5.0",
+    "@restorecommerce/resource-base-interface": "^1.6.0",
     "@restorecommerce/service-config": "^1.0.12",
     "lodash-es": "^4.17.21",
     "memorystream": "^0.3.1",
