@@ -1,748 +1,972 @@
-import _ from 'lodash-es';
-import * as chassis from '@restorecommerce/chassis-srv';
-import fetch from 'node-fetch';
-import MemoryStream from 'memorystream';
-import { createClient, RedisClientType } from 'redis';
-import { InvoiceService } from './InvoiceResourceService.js';
+import { basename } from 'path';
 import {
-  BillingAddress, EconomicAreas, InvoicePositions, RenderingStrategy
-} from './interfaces.js';
-import { Events, Topic, registerProtoMeta } from '@restorecommerce/kafka-client';
+  ResourcesAPIBase,
+  ServiceBase
+} from '@restorecommerce/resource-base-interface';
 import {
-  getJSONPaths, getPreviousMonth, marshallProtobufAny, requestID,
-  storeInvoicePositions, unmarshallProtobufAny
-} from './utils.js';
-import { createClient as grpcClient, createChannel } from '@restorecommerce/grpc-client';
-import { Logger } from 'winston';
-import { createLogger } from '@restorecommerce/logger';
-import { createServiceConfig } from '@restorecommerce/service-config';
-import { Arango } from '@restorecommerce/chassis-srv/lib/database/provider/arango/base.js';
-import { InvoiceServiceDefinition, protoMetadata as invoiceMeta } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice.js';
+  Client,
+  GrpcClientConfig,
+  createChannel,
+  createClient,
+} from '@restorecommerce/grpc-client';
+import { type DatabaseProvider } from '@restorecommerce/chassis-srv';
+import { Topic } from '@restorecommerce/kafka-client';
 import {
-  CommandInterfaceServiceDefinition,
-  protoMetadata as commandInterfaceMeta
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/commandinterface.js';
-import { ObjectServiceDefinition as OstorageServiceDefinition } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/ostorage.js';
+  Invoice,
+  InvoiceServiceImplementation,
+  InvoiceListResponse,
+  InvoiceList,
+  InvoiceIdList,
+  RequestInvoiceNumber,
+  InvoiceNumberResponse,
+  ManualItem,
+  Position,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice.js';
 import {
-  protoMetadata as reflectionMeta
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/grpc/reflection/v1alpha/reflection.js';
-import { ServerReflectionService } from 'nice-grpc-server-reflection';
-import { BindConfig } from '@restorecommerce/chassis-srv/lib/microservice/transport/provider/grpc.js';
-import { HealthDefinition } from '@restorecommerce/rc-grpc-clients/dist/generated-server/grpc/health/v1/health.js';
+  OperationStatus,
+  StatusListResponse
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/status.js';
+import { CallContext } from 'nice-grpc-common';
+import { ServiceConfig } from './experimental/WorkerBase.js';
+import { Logger } from '@restorecommerce/logger';
+import {
+  DeleteRequest,
+  DeleteResponse,
+  ReadRequest
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/resource_base.js';
+import {
+  ACSClientContext,
+  AuthZAction,
+  DefaultACSClientContextFactory,
+  DefaultResourceFactory,
+  Operation,
+  access_controlled_function,
+  injects_meta_data,
+} from '@restorecommerce/acs-client';
+import { Subject } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/auth.js';
+import {
+  Payload_Strategy,
+  RenderRequest,
+  RenderResponse,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/rendering.js';
+import {
+  PdfRenderingServiceDefinition,
+  RenderingResponse as PdfRenderResponse,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/pdf_rendering.js';
+import {
+  NotificationReqServiceDefinition,
+  NotificationReq,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/notification_req.js';
+import {
+  ObjectServiceDefinition,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/ostorage.js';
+import {
+  Shop,
+  ShopResponse,
+  ShopServiceDefinition,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/shop.js';
+import {
+  CustomerResponse,
+  CustomerServiceDefinition,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/customer.js';
+import {
+  OrganizationResponse,
+  OrganizationServiceDefinition,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/organization.js';
+import {
+  UserResponse,
+  UserServiceDefinition,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/user.js';
+import {
+  Bundle,
+  IndividualProduct,
+  PhysicalProduct,
+  PhysicalVariant,
+  Product,
+  ProductResponse,
+  ProductServiceDefinition,
+  ServiceProduct,
+  ServiceVariant,
+  VirtualProduct,
+  VirtualVariant
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/product.js';
+import {
+  ManufacturerResponse,
+  ManufacturerServiceDefinition,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/manufacturer.js';
+import {
+  Tax,
+  TaxResponse,
+  TaxServiceDefinition,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/tax.js';
+import {
+  FulfillmentProduct,
+  FulfillmentProductResponse,
+  FulfillmentProductServiceDefinition,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/fulfillment_product.js';
+import {
+  Filter_Operation,
+  Filter_ValueType,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/filter.js';
+import {
+  Aggregation,
+  ResourceAggregator,
+  ResponseMap,
+} from './experimental/ResourceAggregator.js';
+import { Readable, Transform } from 'stream';
 
-const DELETE_ORG_DATA = 'deleteOrgData';
-export let billingService: BillingService;
-
-registerProtoMeta(invoiceMeta, commandInterfaceMeta, reflectionMeta);
-
-class BillingCommandInterface extends chassis.CommandInterface {
-  constructor(server: chassis.Server, cfg: any, logger: Logger, events: Events,
-    redisClient: RedisClientType<any, any>) {
-    super(server, cfg, logger, events, redisClient);
-  }
-
-  async restore(payload: any): Promise<any> {
-    this.logger.info(
-      'Restore operation called. Executing operation prologue...');
-    this.logger.info('Resetting Redis counters...');
-
-    const fieldGenConfig = this.config.invoiceFieldsGenerators;
-    await billingService.redisClient.set('invoices:invoice_number',
-      fieldGenConfig.invoice.invoice_number.startingValue);
-    return await super.restore(payload);
-  }
-
-  async reset(): Promise<any> {
-    await super.reset();
-    this.logger.info('Executing reset extension...');
-    this.logger.info('Resetting Redis data...');
-
-    // resetting counter
-    const fieldGenConfig = this.config.invoiceFieldsGenerators;
-    await billingService.redisClient.set('invoices:invoice_number',
-      fieldGenConfig.invoice.invoice_number.startingValue);
-
-    this.logger.info('Resetting cached data...');
-    // billingService.resourceProvider = new BillingResourceProvider(billingService.cfg,
-    //   billingService.logger, billingService.microserviceClients);
-    billingService.pendingTasks = new Map<string, Object>();
-    this.logger.info('Reset concluded');
-
-    return {};
-  }
-
-  makeResourcesRestoreSetup(db: any, collectionName: string): any {
-    const that = this;
-    return {
-      [`${collectionName}Deleted`]: async function restoreDeleted(message: any,
-        ctx: any, config: any, eventName: string): Promise<any> {
-        await db.delete(collectionName, { id: message.id });
-        return {};
-      },
-      [`${collectionName}Modified`]: async function restoreModified(message: any,
-        ctx: any, config: any, eventName: string): Promise<any> {
-        await db.update(collectionName, { id: message.id },
-          _.omitBy(message, _.isNil));
-        return {};
-      },
-      [`${collectionName}Created`]: async function restoreCreated(message: any,
-        ctx: any, config: any, eventName: string): Promise<any> {
-        await db.insert(`${collectionName}s`, message);
-        // incrementing counter
-        await billingService.redisClient.incr('invoices:invoice_number');
-        return {};
-      }
-    };
-  }
+export type ProductNature = PhysicalProduct | VirtualProduct | ServiceProduct;
+export type ProductVariant = PhysicalVariant | VirtualVariant | ServiceVariant;
+export type PositionProduct = ProductVariant | Bundle;
+export type AggregatedPosition = Position & {
+  product: PositionProduct;
 }
 
-export class BillingService {
-  pendingTasks: Map<string, Object>;
-  invoiceService: InvoiceService;
-  redisClient: RedisClientType<any, any>;
-  redisInvoicePosClient: RedisClientType<any, any>;
-  redisFileStoreClient: RedisClientType<any, any>;
-  cfg: any;
-  logger: Logger;
-  events: Events;
-  offsetStore: chassis.OffsetStore;
-  topics: Map<string, Topic>;
-  server: chassis.Server;
-  templatesURLPrefix: string;
-  externalRrc: any;
-  bodyTpl: any;
-  layoutTpl: any;
-  subjectTpl: any;
-  attachmentTpl: any;
-  commandInterface: BillingCommandInterface;
+export type Template = {
+  shops?: ResponseMap<ShopResponse>,
+  customers?: ResponseMap<CustomerResponse>,
+  organization?: ResponseMap<OrganizationResponse>,
+  users?: ResponseMap<UserResponse>,
+  products?: ResponseMap<ProductResponse>,
+  taxes?: ResponseMap<TaxResponse>,
+  manufacturers?: ResponseMap<ManufacturerResponse>,
+  fulfillments_products?: ResponseMap<FulfillmentProductResponse>
+};
 
-  constructor(cfg: any, logger: Logger) {
-    this.cfg = cfg;
-    this.logger = logger;
-    const redisConfig = cfg.get('redis');
-    if (_.has(redisConfig, 'db-indexes.db-invoiceCounter')) {
-      redisConfig.database = cfg.get('redis:db-indexes:db-invoiceCounter');
-      this.redisClient = createClient(redisConfig);
-      this.redisClient.on('error', (err) => this.logger.error('Redis client error in invoice counter store', err));
-      this.redisClient.connect().then((val) =>
-        logger.info('Redis client connection successful for invoice counter store')).
-        catch(err => this.logger.error('Redis connection error in invoice counter store', err));
-    }
+export type Setting = {
+  access_control_subject?: Subject;
+  default_bucket?: string,
+  invoice_html_bucket?: string
+  invoice_pdf_bucket?: string,
+  disable_invoice_html_storage?: string,
+  disable_invoice_pdf_storage?: string,
+  invoice_html_bucket_options?: any
+  invoice_pdf_bucket_options?: any
+  puppeteer_options?: any,
+  email_provider?: string,
+  email_subject_template?: string,
+  email_in_cc?: string[],
+};
 
-    if (_.has(redisConfig, 'db-indexes.db-invoicePositions')) {
-      redisConfig.database = cfg.get('redis:db-indexes:db-invoicePositions');
-      this.redisInvoicePosClient = createClient(redisConfig);
-      this.redisInvoicePosClient.on('error', (err) => this.logger.error('Redis client error in invoice position store', err));
-      this.redisInvoicePosClient.connect().then((val) =>
-        logger.info('Redis client connection successful for invoice position store')).
-        catch(err => this.logger.error('Redis connection error in invoice position store', err));
-    }
+export type KnownUrns = {
+  access_control_subject?: string;
+  render_options?: string;
+  render_strategy?: string;
+  render_style?: string;
+  render_template?: string;
+  pdf_template_id?: string;
+  pdf_template_url?: string;
+  email_template_id?: string;
+  email_template_url?: string;
+  email_provider?: string;
+  email_in_cc?: string;
+  email_subject_template?: string;
+  default_bucket?: string;
+  invoice_html_bucket?: string;
+  invoice_html_bucket_options?: string;
+  invoice_pdf_bucket?: string;
+  invoice_pdf_bucket_options?: string;
+  invoice_pdf_puppeteer_options?: string;
+  enable_invoice_html_storage?: string;
+  enable_invoice_pdf_storage?: string;
+};
 
-    // file store for additional attachment files (apart from invoice)
-    if (_.has(redisConfig, 'db-indexes.db-fileStore')) {
-      redisConfig.database = cfg.get('redis:db-indexes:db-fileStore');
-      this.redisFileStoreClient = createClient(redisConfig);
-      this.redisFileStoreClient.on('error', (err) => this.logger.error('Redis client error in file store', err));
-      this.redisFileStoreClient.connect().then((val) =>
-        logger.info('Redis client connection successful for file store')).
-        catch(err => this.logger.error('Redis connection error in file store', err));
-    }
-
-    this.pendingTasks = new Map<string, Object>();
-    const that = this;
-
-    this['eventsListener'] = async (msg: any, context: any, config: any,
-      eventName: string): Promise<any> => {
-
-      switch (eventName) {
-        case 'triggerInvoices':
-          await that.sendRenderRequests(msg);
-          break;
-        case 'storeInvoicePositions':
-          // store Invoice positions to redis - although an array is sent to kafka
-          // it emits each object to kafka (just like for any normal resource)
-          const eachInvoicePos = msg;
-          that.logger.info(`Received message with event name ${eventName}:`,
-            { eachInvoicePos });
-          await storeInvoicePositions(that.redisInvoicePosClient,
-            eachInvoicePos.id, eachInvoicePos, that.logger);
-          break;
-        case 'renderResponse':
-          try {
-            const reqID = msg.id;
-            this.logger.debug('Processing render response for', { id: msg.id });
-            const split = reqID.split('###');
-            let emailAddress: string = split[0];
-            const invoiceNumber = split[1];
-            const org_userID = split[2];
-
-            let found = false;
-            for (let [jobID, jobData] of that.pendingTasks) {
-              if (jobData['pendingEmails'].has(reqID)) {
-                found = true;
-                if (msg.response.length == 0) {
-                  that.logger.silly(
-                    'Empty response from rendering request. Skipping.');
-                  return;
-                }
-
-                // parsing render response
-                const renderedEmailBody = msg.response[0];
-                const renderedEmailSubject = msg.response[1];
-                const renderedAttachment = msg.response[2];
-
-                const emailObj = unmarshallProtobufAny(renderedEmailBody);
-                const subjectObj = unmarshallProtobufAny(renderedEmailSubject);
-                const attachmentObj = unmarshallProtobufAny(renderedAttachment);
-
-                // sending HTML content for PDF rendering request
-                this.logger.debug('HTML invoice is', { invoice: attachmentObj?.attachment });
-                const pdf = await that.renderPDF(attachmentObj.attachment);
-                await that.sendInvoiceEmail(subjectObj.subject, emailObj.body,
-                  pdf, emailAddress, invoiceNumber, org_userID);
-                // the jobDone would now be handled on contract-srv
-                jobData['pendingEmails'].delete(reqID);
-
-                const deleteResponse = await this.redisInvoicePosClient.del(jobID);
-                if (deleteResponse === 1) {
-                  that.logger.info(`Redis key ${jobID} deleted Successfully`);
-                }
-
-                if (jobData['pendingEmails'].size == 0) { // flush
-                  const jobDoneMessage: any = jobData['job'];
-                  await that.topics.get('jobs').emit('jobDone', jobDoneMessage);
-                  that.pendingTasks.delete(jobID);
-                }
-              }
-            }
-
-            if (!found) {
-              that.logger.silly('Unknown render response with ID', msg.id,
-                '; discarding message.');
-            }
-          } catch (err) {
-            if (err.name) {
-              that.logger.error(err.name);
-              that.logger.verbose(err.stack);
-            } else {
-              that.logger.error(err);
-            }
-          }
-          break;
-        case DELETE_ORG_DATA:
-          try {
-            // get list of Org and userIDs
-            const { org_ids, user_ids, subject } = msg;
-            // delete associated resources with the orgs and users
-            that.logger.info('Deleting invoices for organizations :',
-              { ids: org_ids });
-            await that.invoiceService.deleteInvoicesByOrganization(org_ids,
-              user_ids);
-          } catch (err) {
-            that.logger.error('Exception caught deleting Org data:', err);
-          }
-          break;
-
-        default:  // commands
-          await that.commandInterface.command(msg, context);
-          break;
-      }
+export class InvoiceService
+  extends ServiceBase<InvoiceListResponse, InvoiceList>
+  implements InvoiceServiceImplementation
+{
+  protected static async ACSContextFactory(
+    self: InvoiceService,
+    request: InvoiceList & InvoiceIdList & DeleteRequest,
+    context: any,
+  ): Promise<ACSClientContext> {
+    const ids = request.ids ?? request.items?.map((item: any) => item.id);
+    const resources = await self.getInvoicesByIds(ids, request.subject, context);
+    return {
+      ...context,
+      subject: request.subject,
+      resources: [
+        ...resources.items ?? [],
+        ...request.items ?? [],
+      ],
     };
   }
 
-  async start(): Promise<void> {
-    const db = await chassis.database.get(this.cfg.get('database:main'),
-      this.logger);
-    const serviceNamesCfg = this.cfg.get('serviceNames');
+  protected readonly pdf_rendering_service: Client<PdfRenderingServiceDefinition>;
+  protected readonly notification_service: Client<NotificationReqServiceDefinition>;
+  protected readonly ostorage_service: Client<ObjectServiceDefinition>;
+  protected readonly default_setting: Setting;
+  protected readonly urns: KnownUrns;
 
-    // create Server
-    this.server = new chassis.Server(this.cfg.get('server'), this.logger);
-
-    // create events
-    const kafkaCfg = this.cfg.get('events:kafka');
-    this.events = new Events(kafkaCfg, this.logger);
-    await this.events.start();
-    this.offsetStore =
-      new chassis.OffsetStore(this.events, this.cfg, this.logger);
-
-    const topicTypes = _.keys(kafkaCfg.topics);
-    this.topics = new Map<string, Topic>();
-
-    for (let topicType of topicTypes) {
-      const topicName = kafkaCfg.topics[topicType].topic;
-      const topic = await this.events.topic(topicName);
-      const offSetValue: number = await this.offsetStore.getOffset(topicName);
-      this.logger.info('subscribing to topic with offset value', { topicName },
-        { offSetValue });
-      if (kafkaCfg.topics[topicType].events) {
-        const eventNames = kafkaCfg.topics[topicType].events;
-        for (let eventName of eventNames) {
-          await topic.on(eventName, this['eventsListener'], {
-            startingOffset: offSetValue
-          });
+  get ApiKey(): Subject {
+    const apiKey = this.cfg.get('authentication:apiKey');
+    return apiKey
+      ? {
+          id: 'apiKey',
+          token: apiKey,
         }
-      }
-      this.topics.set(topicType, topic);
+      : undefined;
+  }
+
+  constructor(
+    protected readonly topic: Topic,
+    protected readonly db: DatabaseProvider,
+    protected readonly cfg: ServiceConfig,
+    readonly logger: Logger,
+    protected readonly aggregator = new ResourceAggregator(cfg, logger)
+  ) {
+    super(
+      cfg.get('database:main:entities:0') ?? 'invoice',
+      topic,
+      logger,
+      new ResourcesAPIBase(
+        db,
+        cfg.get('database:main:collections:0') ?? 'invoices',
+        cfg.get('fieldHandlers:invoice'),
+      ),
+      !!cfg.get('events:enableEvents'),
+    );
+
+    this.pdf_rendering_service = createClient(
+      {
+        ...cfg.get('client:pdf_rendering'),
+        logger
+      } as GrpcClientConfig,
+      PdfRenderingServiceDefinition,
+      createChannel(cfg.get('client:pdf_rendering:address')),
+    );
+
+    this.ostorage_service = createClient(
+      {
+        ...cfg.get('client:ostorage'),
+        logger
+      } as GrpcClientConfig,
+      ObjectServiceDefinition,
+      createChannel(cfg.get('client:ostorage:address')),
+    );
+
+    this.urns = cfg.get('urns');
+  }
+
+  protected getInvoicesByIds(
+    ids: string[],
+    subject?: Subject,
+    context?: any
+  ): Promise<InvoiceListResponse> {
+    ids = [...new Set(ids)];
+    if (ids.length > 1000) {
+      throw {
+        code: 500,
+        message: 'Query for fulfillments exceeds limit of 1000!'
+      } as OperationStatus
     }
 
-    this.commandInterface = new BillingCommandInterface(this.server,
-      this.cfg, this.logger, this.events, this.redisClient);
-    await this.server.bind(serviceNamesCfg.cis, {
-      service: CommandInterfaceServiceDefinition,
-      implementation: this.commandInterface
-    } as BindConfig<CommandInterfaceServiceDefinition>);
-
-    // ostorage client to store billing pdfs
-    const clientCfg = this.cfg.get('client:services:ostorage');
-    const channel = createChannel(clientCfg.address);
-    const logger = this.logger;
-    const ostorageService = grpcClient({
-      ...clientCfg,
-      logger
-    }, OstorageServiceDefinition, channel);
-
-    this.invoiceService =
-      new InvoiceService(this.cfg, db, this.events, this.logger,
-        this.redisClient, this.topics.get('invoice.resource'), ostorageService);
-    await this.server.bind(serviceNamesCfg.billing, {
-      service: InvoiceServiceDefinition,
-      implementation: this.invoiceService
-    } as unknown as BindConfig<InvoiceServiceDefinition>);
-
-    // Add reflection service
-    const reflectionServiceName = serviceNamesCfg.reflection;
-    const reflectionService = chassis.buildReflectionService([
-      { descriptor: invoiceMeta.fileDescriptor },
-      { descriptor: commandInterfaceMeta.fileDescriptor }
-    ]);
-    await this.server.bind(reflectionServiceName, {
-      service: ServerReflectionService,
-      implementation: reflectionService
+    const request = ReadRequest.fromPartial({
+      filters: [{
+        filters: [{
+          field: 'id',
+          operation: Filter_Operation.in,
+          value: JSON.stringify(ids),
+          type: Filter_ValueType.ARRAY
+        }]
+      }],
+      subject
     });
-
-
-    await this.server.bind(serviceNamesCfg.health,
-      {
-        service: HealthDefinition,
-        implementation: new chassis.Health(this.commandInterface, {
-          readiness: async () => !!await ((db as Arango).db).version()
-        })
-      } as BindConfig<HealthDefinition>);
-
-    // load templates
-    await this.loadTemplates();
-
-    // start server
-    await this.server.start();
-    this.logger.info('server started successfully');
+    return super.read(request, context);
   }
 
-  // This needs to read only those contract_ids i.e. invoicePositions for which
-  // the email notification needs to be sent out now and this is in turn decided by contract-srv
-  // which actually reads the schedule and triggers sending of Invoice
-  async sendRenderRequests(msg: any): Promise<boolean> {
-    this.logger.debug('Trigger Invoices message ids', { ids: msg.ids });
-    try {
-      const ids = msg.ids;
-      // id can be either contract or customer_id stored as key in redis
-      // for the invoicePosition
-      for (let id of ids) {
-        // the id here refers to contractID or orderID along with org or userID
-        const org_userID = id.split('###')[1];
-        let invoiceData: any = await this.redisInvoicePosClient.get(id);
-        if (!invoiceData) {
-          this.logger.info(
-            `There was no Invoice positions stored for the identifier ${id} and hence
-            skipping sending notification of Invoice`);
-          continue;
-        }
-        invoiceData = JSON.parse(invoiceData.toString());
-        let data: any = {};
-        data.invoice_positions = invoiceData.invoice_positions;
-        data.recipient_customer = invoiceData.recipient_customer;
-        data.recipient_organization = invoiceData.recipient_organization;
-        data.recipient_billing_address = invoiceData.recipient_billing_address;
-        data.sender_billing_address = invoiceData.sender_billing_address;
-        data.sender_organization = invoiceData.sender_organization;
-        data.payment_method_details = invoiceData.payment_method_details;
-        data.contract_start_date = invoiceData.contract_start_date;
-        // add invoice number and value performance date
-        data.invoice_no = invoiceData.invoice_no;
-        data.from_date = new Date(invoiceData.from_date);
-        data.to_date = new Date(invoiceData.to_date);
-
-        this.logger.debug('Invoice Positions data retreived from Redis', invoiceData);
-        // generate invoice pdfs
-        const invoice = await this.buildInvoice(data, org_userID);
-        await this.sendHTMLRenderRequest(invoiceData.recipient_billing_address,
-          invoice, id);
-      }
-    } catch (err) {
-      if (err.name) {
-        this.logger.error(err.name);
-        this.logger.verbose(err.stack);
-      } else {
-        this.logger.error(err);
-      }
-      return false;
-    }
-
-    return true;
+  @access_controlled_function({
+    action: AuthZAction.EXECUTE,
+    operation: Operation.whatIsAllowed,
+    context: DefaultACSClientContextFactory,
+    resource: DefaultResourceFactory('execution.generateInvoiceNumber'),
+    useCache: true,
+  })
+  public async generateInvoiceNumber(
+    request: RequestInvoiceNumber,
+    context?: CallContext,
+  ): Promise<InvoiceNumberResponse> {
+    return null;
   }
 
-  async sendInvoiceEmail(subject: string, body: string, invoice: Buffer,
-    email: string, invoiceNumber: string, org_userID: string): Promise<void> {
-    let attachments = [
-      {
-        buffer: invoice,
-        filename: `Invoice_${invoiceNumber}.pdf`,
-        content_type: 'application/pdf',
-      }
-    ];
-    // add attachments with xlsx or other files if any additional attachments exists
-    let fileURLs: any = await this.redisFileStoreClient.get(invoiceNumber);
-    if (fileURLs) {
-      let techUser;
-      const techUsersCfg = this.cfg.get('techUsers');
-      if (techUsersCfg && techUsersCfg.length > 0) {
-        techUser = _.find(techUsersCfg, { id: 'upload_objects_user_id' });
-      }
-      fileURLs = JSON.parse(fileURLs);
-      // download and add it to attachments
-      for (let url of fileURLs) {
-        if (!url.startsWith('//')) {
-          this.logger.error('Invalid Object url', { url });
-        }
-        const bucketKey = url.substring(2);
-        const bucket = bucketKey.substring(0, bucketKey.indexOf('/'));
-        const key = bucketKey.substring(bucketKey.indexOf('/') + 1, bucketKey.length);
-        const bufferAttachment = await this.invoiceService.downloadFile(bucket, key, techUser);
-        attachments.push({
-          buffer: bufferAttachment,
-          filename: key,
-          content_type: ''
-        });
-      }
-    }
-    const bccMailList = this.cfg.get('mailServerCfg:bcc');
-    const notification = {
-      body,
+  protected async aggregate(
+    invoice_list: InvoiceList,
+    subject?: Subject,
+    context?: CallContext,
+    evaluate?: boolean,
+  ): Promise<Aggregation<InvoiceList, Template>> {
+    const aggregation = await this.aggregator.aggregate(
+      invoice_list,
+      [
+        {
+          service: ShopServiceDefinition,
+          map_by_ids: (invoice_list) => invoice_list.items.map(i => i.shop_id),
+          container: 'shops'
+        },
+        {
+          service: CustomerServiceDefinition,
+          map_by_ids: (invoice_list) => invoice_list.items.map(i => i.customer_id),
+          container: 'customers'
+        },
+        {
+          service: ProductServiceDefinition,
+          map_by_ids: (invoice_list) => invoice_list.items.flatMap(
+            i => i.sections
+          ).flatMap(
+            section => section.positions
+          ).flatMap(
+            position => position.product_item?.product_id
+          ),
+          container: 'products',
+        },
+        {
+          service: FulfillmentProductServiceDefinition,
+          map_by_ids: (invoice_list) => invoice_list.items.flatMap(
+            i => i.sections
+          ).flatMap(
+            section => section.positions
+          ).flatMap(
+            position => position.fulfillment_item.product_id
+          ),
+          container: 'fulfillment_products'
+        },
+      ],
+      {} as Template,
       subject,
-      transport: 'email',
-      email: {
-        to: email.split(','),
-        bcc: bccMailList
-      },
-      attachments
-    };
-
-    await this.topics.get('notificationReq').emit('sendEmail', notification);
-
-    // persist invoice and delete tmp from Redis
-    await this.invoiceService.saveInvoice(
-      requestID(email, invoiceNumber, org_userID),
-      invoice, `Invoice_${invoiceNumber}.pdf`);
+      context,
+    ).then(
+      invoice_list => this.aggregator.aggregate(
+        invoice_list,
+        [
+          {
+            service: UserServiceDefinition,
+            map_by_ids: (invoice_list) => invoice_list.customers!.map(
+              customer => customer.payload.private?.user_id
+            ).filter(i => i),
+            container: 'users',
+          },
+          {
+            service: OrganizationServiceDefinition,
+            map_by_ids: (invoice_list) => [
+              ...invoice_list.customers!.map(
+                customer => customer.payload.public_sector?.organization_id
+              ),
+              ...invoice_list.customers!.map(
+                customer => customer.payload.commercial?.organization_id
+              ),
+            ].filter(i => i),
+            container: 'organizations',
+          },
+          {
+            service: ManufacturerServiceDefinition,
+            map_by_ids: (invoice_list) => invoice_list.products?.map(
+              product => product.payload!.product?.manufacturer_id
+            ).filter(i => i),
+            container: 'manufacturers'
+          },
+          {
+            service: TaxServiceDefinition,
+            map_by_ids: (invoice_list) => invoice_list.products?.flatMap(
+              product => [
+                ...product.payload!.product?.tax_ids,
+                ...product.payload!.product?.physical?.variants?.flatMap(
+                  variant => variant.tax_ids
+                ),
+                ...product.payload!.product?.virtual?.variants?.flatMap(
+                  variant => variant.tax_ids
+                ),
+                ...product.payload!.product?.service?.variants?.flatMap(
+                  variant => variant.tax_ids
+                ),
+              ]
+            ).filter(i => i),
+            container: 'taxes'
+          }
+        ],
+        {} as Template,
+        subject,
+        context,
+      )
+    );
+    return aggregation;
   }
 
-  /**
-   *
-   * @param data
-   */
-  async buildInvoice(data: InvoicePositions, org_userID: string): Promise<any> {
-    const {
-      invoice_positions, sender_billing_address, sender_organization,
-      recipient_billing_address, recipient_organization, recipient_customer,
-      payment_method_details, invoice_no, from_date, to_date
-    } = data;
+  @access_controlled_function({
+    action: AuthZAction.READ,
+    operation: Operation.whatIsAllowed,
+    context: DefaultACSClientContextFactory,
+    resource: [{ resource: 'invoice' }],
+    database: 'arangoDB',
+    useCache: true,
+  })
+  public override async read(
+    request: ReadRequest,
+    context?: CallContext,
+  ): Promise<InvoiceListResponse> {
+    return super.read(request, context);
+  }
 
-    const phoneNumber = sender_billing_address.telephone;
+  @injects_meta_data()
+  @access_controlled_function({
+    action: AuthZAction.CREATE,
+    operation: Operation.isAllowed,
+    context: InvoiceService.ACSContextFactory,
+    resource: DefaultResourceFactory('invoice'),
+    database: 'arangoDB',
+    useCache: true,
+  })
+  public override async create(
+    request: InvoiceList,
+    context: CallContext,
+  ): Promise<InvoiceListResponse> {
+    return super.create(request, context);
+  }
 
-    const subTotalGross = invoice_positions[0].totalPrice.gross;
-    const subTotalNet = invoice_positions[0].totalPrice.net;
+  @injects_meta_data()
+  @access_controlled_function({
+    action: AuthZAction.CREATE,
+    operation: Operation.isAllowed,
+    context: InvoiceService.ACSContextFactory,
+    resource: DefaultResourceFactory('invoice'),
+    database: 'arangoDB',
+    useCache: true,
+  })
+  public override async update(
+    request: InvoiceList,
+    context?: CallContext,
+  ): Promise<InvoiceListResponse> {
+    return super.update(request, context);
+  }
 
-    let vatText: string, showVAT = true, credit = false;
-    // set credit to true, if there is atleast one negative value in the invoice position
-    for (let ivp of invoice_positions) {
-      let rows = ivp.invoiceRows;
-      for (let row of rows) {
-        if (row.amount < 0) {
-          credit = true;
-          this.logger.info('Invoice contains credit');
-          break;
-        }
-      }
-      if (credit) {
-        break;
-      }
+  @injects_meta_data()
+  @access_controlled_function({
+    action: AuthZAction.CREATE,
+    operation: Operation.isAllowed,
+    context: InvoiceService.ACSContextFactory,
+    resource: DefaultResourceFactory('invoice'),
+    database: 'arangoDB',
+    useCache: true,
+  })
+  public override async upsert(
+    request: InvoiceList,
+    context?: CallContext,
+  ): Promise<InvoiceListResponse> {
+    return super.upsert(request, context);
+  }
+
+  @injects_meta_data()
+  @access_controlled_function({
+    action: AuthZAction.EXECUTE,
+    operation: Operation.isAllowed,
+    context: InvoiceService.ACSContextFactory,
+    resource: DefaultResourceFactory('execution.renderInvoice'),
+    database: 'arangoDB',
+    useCache: true,
+  })
+  public async render(
+    request: InvoiceList,
+    context?: CallContext,
+  ): Promise<InvoiceListResponse> {
+    const aggregation = await this.aggregate(
+      request,
+      request.subject,
+      context,
+      true,
+    );
+
+    request.items = aggregation.items;
+    const response = await super.upsert(request, context);
+
+    const extractInvoiceDetails = (
+      invoice: Invoice
+    ) => {
+      const clone = {
+        ...invoice
+      };
+      delete clone.meta;
+      delete clone.documents;
+      delete clone.sections;
+      return clone;
     }
 
-    // VAT value is only chargeable within Germany,
-    // but it should be shown if the country belongs to EEA
-
-    switch (recipient_billing_address.economic_area) {
-      case EconomicAreas.DE:
-        vatText = 'VAT';
-        break;
-      case EconomicAreas.EEA:
-        vatText = `VAT Free, ${sender_organization.vat_id}`;
-        break;
-      case EconomicAreas.OTHER:
-        vatText = 'VAT Free';
-        showVAT = true;
-        break;
-    }
-    const senderLogo = sender_organization.logo;
-
-    const now = new Date();
-    const lastMonth = new Date();
-    lastMonth.setDate(0);
-
-    // add dueDate and contractStartDate
-    const dueDateDays = this.cfg.get('invoiceDueDateDays') ? this.cfg.get('invoiceDueDateDays') : 15;
-    let dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + dueDateDays);
-    // iterate through invoice position and convert contract_start_date from snake case to camel case
-    invoice_positions[0]?.invoiceRows.forEach(e => e.contractStartDate = (e as any).contract_start_date);
-    let recipientOrgName = recipient_billing_address.organization_name ? recipient_billing_address.organization_name : recipient_organization.name;
-    let invoiceNumber = invoice_no ? invoice_no : (await this.invoiceService.generateInvoiceNumber({})).invoice_no;
-    const invoice = {
-      month: lastMonth.toISOString(),
-      logo: senderLogo,
-
-      senderOrganizationName: sender_organization.name,
-      senderStreet: sender_billing_address.street,
-      senderPostcode: sender_billing_address.postcode,
-      senderLocality: sender_billing_address.locality,
-      senderRegion: sender_billing_address.region,
-      senderCountry: sender_billing_address.country_name,
-
-      invoiceNumber,
-      fromDate: from_date,
-      toDate: to_date,
-      timestamp: now.toISOString(),
-      // add dueDate
-      dueDate,
-      timezone: sender_billing_address.timezone,
-      paymentStatus: 'unpaid',
-      customerNumber: recipient_customer.customer_number,
-      showVAT,
-      customerVAT: recipient_organization.vat_id,
-
-      customerName: recipientOrgName,
-      customerStreet: recipient_billing_address.street,
-      customerPostcode: recipient_billing_address.postcode,
-      customerLocality: recipient_billing_address.locality,
-      customerRegion: recipient_billing_address.region,
-      customerCountry: recipient_billing_address.country_name,
-      credit,
-
-      productList: invoice_positions[0].invoiceRows,
-      currency: invoice_positions[0].currency,
-
-      subTotalGross,
-      subTotalNet,
-
-      vatText,
-      vatValue: subTotalGross - subTotalNet,
-      total: subTotalGross,
-
-      senderBank: payment_method_details.bankName,
-      senderIBAN: payment_method_details.iban,
-      senderBIC: payment_method_details.bic,
-
-      senderEmail: sender_billing_address.email,
-      senderWebsite: sender_billing_address.website,
-      senderPhoneNumber: phoneNumber,
-
-      senderRegistrationNumber: sender_organization.registration,
-      senderRegistrationCourt: sender_organization.registration_court,
-      senderVAT: sender_organization.vat_id
+    const mergeProductVariantRecursive = (
+      nature: ProductNature,
+      variant_id: string,
+    ): ProductVariant => {
+      const variant = nature?.variants?.find(v => v.id === variant_id);
+      if (variant?.parent_variant_id) {
+        const template = mergeProductVariantRecursive(
+          nature, variant.parent_variant_id
+        );
+        return {
+          ...template,
+          ...variant,
+        };
+      }
+      else {
+        return variant;
+      }
     };
 
-    // invoice resource temporarily held in memory until PDF is rendered from HTML
-    const invoiceResource = {
-      timestamp: invoice.timestamp,
-      customer_id: recipient_customer.id,
-      total_amount: invoice.total,
-      net_amount: invoice.subTotalNet,
-      vat_amount: invoice.vatValue,
-      payment_status: invoice.paymentStatus,
-      invoice_number: invoice.invoiceNumber
+    const mergeProductVariant = (
+      product: IndividualProduct,
+      variant_id: string,
+    ): ProductVariant => {
+      const nature = product.physical ?? product.virtual ?? product.service;
+      const variant = mergeProductVariantRecursive(nature, variant_id);
+
+      return {
+        ...product,
+        ...variant,
+      };
     };
 
-    await this.invoiceService.holdInvoice(invoiceResource, requestID(
-      recipient_billing_address.email, invoiceResource.invoice_number,
-      org_userID));
+    const aggregatePosition = (
+      position: Position
+    ): AggregatedPosition => {
+      const product = position.product_item && aggregation.products.get(
+        position.product_item.product_id
+      );
+      const variant = product.payload.product && mergeProductVariant(
+        product.payload.product,
+        position.product_item.variant_id
+      );
+      
+      return {
+        ...position,
+        product: variant && product.payload.bundle
+      };
+    };
+
+    const extractShopConfigs = (
+      shop_id: string
+    ) => {
+      const shop = aggregation.shops.get(shop_id)!.payload;
+      const options = Object.assign({}, 
+        ...shop.settings.filter(
+          s => s.id === this.urns.render_options
+        ).map(
+          s => JSON.parse(s.value)
+        )
+      );
+      const templates = Buffer.from(
+        JSON.stringify(
+          Object.assign({},
+            ...shop.settings.filter(
+              s => s.id === this.urns.pdf_template_url
+            ).map(
+              (s, i) => ({ [i]: s.value })
+            )
+          )
+        )
+      );
+      const strategy = shop.settings.find(
+        s => s.id === this.urns.render_strategy
+      )?.value ?? Payload_Strategy.INLINE;
+      const style_url = shop.settings.find(
+        s => s.id ===this.urns.render_style
+      )?.value;
+
+      return {
+        options,
+        templates,
+        strategy,
+        style_url,
+      }
+    };
+
+    const extractData = (
+      invoice: Invoice
+    ) => Buffer.from(
+      JSON.stringify({
+        headers: extractInvoiceDetails(invoice),
+        sections: invoice.sections?.map(
+          section => ({
+            ...section,
+            positions: section.positions?.map(
+              aggregatePosition
+            )
+          })
+        )
+      })
+    );
+
+    response.items.forEach(
+      item => this.topic.emit(
+        'renderRequest',
+        {
+          id: `invoice/pdf/${item!.payload.id}`,
+          payloads: [
+            {
+              content_type: 'text/html',
+              data: extractData(item.payload),
+              ...extractShopConfigs(item.payload.shop_id),
+            }
+          ],
+        } as RenderRequest
+      )
+    );
+    return response;
+  }
+
+  @access_controlled_function({
+    action: AuthZAction.EXECUTE,
+    operation: Operation.isAllowed,
+    context: InvoiceService.ACSContextFactory,
+    resource: DefaultResourceFactory('execution.withdrawInvoice'),
+    database: 'arangoDB',
+    useCache: true,
+  })
+  public async withdraw(
+    request: InvoiceIdList,
+    context?: CallContext,
+  ): Promise<InvoiceListResponse> {
+    return null;
+  }
+  
+  @access_controlled_function({
+    action: AuthZAction.EXECUTE,
+    operation: Operation.isAllowed,
+    context: InvoiceService.ACSContextFactory,
+    resource: DefaultResourceFactory('execution.sendInvoice'),
+    database: 'arangoDB',
+    useCache: true,
+  })
+  public async send(
+    request: InvoiceIdList,
+    context?: CallContext,
+  ): Promise<StatusListResponse> {
+    const ids = request.items!.map(item => item.id);
+    await this.read(
+      {
+        filters: [
+          {
+            filters: [
+              {
+                field: 'id',
+                value: JSON.stringify(ids),
+                type: Filter_ValueType.ARRAY,
+                operation: Filter_Operation.in,
+              }
+            ],
+          }
+        ],
+        limit: ids.length,
+        subject: request.subject,
+      }
+    );
+
+    return null;
+  }
+
+  @access_controlled_function({
+    action: AuthZAction.DELETE,
+    operation: Operation.isAllowed,
+    context: InvoiceService.ACSContextFactory,
+    resource: DefaultResourceFactory('invoice'),
+    database: 'arangoDB',
+    useCache: true,
+  })
+  public override async delete(
+    request: DeleteRequest,
+    context?: CallContext,
+  ): Promise<DeleteResponse> {
+    return super.delete(request, context);
+  }
+
+  private extractShopSetting(
+    shop: Shop,
+  ) {
+    const default_bucket = shop.settings.find(
+      a => a.id === this.urns.invoice_html_bucket
+    )?.value ?? this.default_setting.default_bucket;
+
+    const setting: Setting = {
+      default_bucket,
+      access_control_subject: JSON.parse(shop.settings.find(
+        a => a.id === this.urns.access_control_subject
+      )?.value ?? null) ?? this.default_setting.access_control_subject ?? this.ApiKey,
+      invoice_html_bucket: shop.settings.find(
+        a => a.id === this.urns.invoice_html_bucket
+      )?.value ?? this.default_setting.invoice_html_bucket ?? default_bucket,
+      invoice_pdf_bucket: shop.settings.find(
+        a => a.id === this.urns.invoice_pdf_bucket
+      )?.value ?? this.default_setting.invoice_pdf_bucket ?? default_bucket,
+      disable_invoice_html_storage: shop.settings.find(
+        a => a.id === this.urns.enable_invoice_html_storage
+      )?.value ?? this.default_setting.disable_invoice_html_storage,
+      disable_invoice_pdf_storage: shop.settings.find(
+        a => a.id === this.urns.enable_invoice_html_storage
+      )?.value ?? this.default_setting.disable_invoice_pdf_storage,
+      invoice_html_bucket_options: JSON.parse(shop.settings.find(
+        a => a.id === this.urns.invoice_html_bucket_options
+      )?.value ?? null) ?? this.default_setting.invoice_html_bucket_options,
+      invoice_pdf_bucket_options: JSON.parse(shop.settings.find(
+        a => a.id === this.urns.invoice_html_bucket_options
+      )?.value ?? null) ?? this.default_setting.invoice_pdf_bucket_options,
+      puppeteer_options: JSON.parse(shop.settings.find(
+        a => a.id === this.urns.invoice_pdf_puppeteer_options
+      )?.value ?? null) ?? this.default_setting.puppeteer_options,
+      email_provider: shop.settings.find(
+        a => a.id === this.urns.email_provider
+      )?.value ?? this.default_setting.email_provider,
+      email_in_cc: shop.settings.filter(
+        a => a.id === this.urns.email_in_cc
+      )?.flatMap(
+        a => a.value?.split(',')
+      ) ?? this.default_setting.email_in_cc,
+      email_subject_template: shop.settings.find(
+        a => a.id === this.urns.email_subject_template
+      )?.value ?? this.default_setting.email_subject_template,
+    };
+
+    return setting;
+  }
+
+  private async storageHtmlRenderResponse(
+    invoice: Invoice,
+    body: string,
+    setting: Setting,
+    context?: any,
+  ) {
+    const buffer = Buffer.from(body);
+    const stream = new Readable();
+    stream.push(buffer);
+    const transformer = new Transform({
+      objectMode: true,
+      transform: (chunk, _, done) => {
+        const data = {
+          bucket: setting.disable_invoice_html_storage,
+          key: invoice.id + '.html',
+          object: chunk,
+          meta: invoice.meta,
+          options: {
+            content_type: 'text/html',
+            ...setting.invoice_html_bucket_options,
+          },
+          subject: setting.access_control_subject,
+        };
+        done(null, data);
+      }
+    });
+    
+    invoice = await this.ostorage_service.put(
+      stream.pipe(transformer)
+    ).then(
+      resp => {
+        const obj = resp.response.payload;
+        const filename = basename(obj.key);
+        invoice.documents.push(
+          {
+            id: 'invoice_html',
+            url: obj.url,
+            caption: filename,
+            filename,
+            bytes: buffer.byteLength,
+            content_type: 'text/html',
+          }
+        );
+        return invoice;
+      }
+    ).then(
+      invoice => super.update(
+        {
+          items: [invoice],
+          total_count: 1,
+          subject: setting.access_control_subject,
+        },
+        context,
+      )
+    ).then(
+      resp => resp.items.pop().payload
+    );
+    
+    stream.destroy();
     return invoice;
   }
 
-  /**
-   *
-   * @param billingAddress
-   * @param invoice
-   * @param msg_id
-   */
-  async sendHTMLRenderRequest(billingAddress: BillingAddress, invoice: any,
-    msg_id: string): Promise<void> {
-
-    const options = {
-      texts: {},
-      locale: billingAddress.locale || 'de-DE'
-    };
-
-    let styleURL: string;
-    if (this.externalRrc) {
-      styleURL = this.externalRrc.styleURL;
+  private async handlePdfRenderResponse(
+    invoice: Invoice,
+    body: string,
+    setting: Setting,
+    context?: any,
+  ) {
+    if (setting.disable_invoice_html_storage !== 'true') {
+      await this.storageHtmlRenderResponse(
+        invoice,
+        body,
+        setting,
+        context,
+      );
     }
-    // msg_id is contract_id###organization_id or order_id###organization_id
-    // or order_id###user_id - this is needed for setting the scope of generated
-    // invoice while storing in ostorage-srv
-    const identifier = msg_id.split('###')[1];
-    const id = requestID(billingAddress.email, invoice.invoiceNumber,
-      identifier);
-    const renderRequest = {
-      id,
-      payload: [
-        {
-          templates: marshallProtobufAny({
-            body: { body: this.bodyTpl, layout: this.layoutTpl }
-          }),
-          data: marshallProtobufAny(invoice),
-          options: marshallProtobufAny(options),
-          content_type: 'application/html'
+    
+    await this.pdf_rendering_service.render({
+      combined: {
+        output: {
+          generate_pdfa: true,
+          meta_data: {
+            creator: '',
+            producer: '',
+            title: invoice.invoice_number,
+          },
+          upload_options: {
+            bucket: setting.invoice_pdf_bucket,
+            key: `${invoice.id}/${invoice.invoice_number}'.pdf'}`,
+            content_disposition: 'application/pdf',
+          }
         },
-        {
-          templates: marshallProtobufAny({
-            subject: { body: this.subjectTpl }
-          }),
-          data: marshallProtobufAny(invoice),
-          options: marshallProtobufAny(options),
-          content_type: 'application/text'
-        },
-        {
-          templates: marshallProtobufAny({
-            attachment: { body: this.attachmentTpl, layout: this.layoutTpl },
-          }),
-          data: marshallProtobufAny(invoice),
-          style_url: styleURL,
-          options: marshallProtobufAny(options),
-          strategy: RenderingStrategy.COPY,
-          content_type: 'application/pdf'
-        },
-      ]
-    };
-
-    await this.topics.get('rendering').emit('renderRequest', renderRequest);
-
-    if (!this.pendingTasks.has(msg_id)) {
-      this.pendingTasks.set(msg_id, {
-        pendingEmails: new Set<String>()
-      });
-    }
-
-    this.pendingTasks.get(msg_id)['pendingEmails'].add(id);
-  }
-
-  async loadTemplates(): Promise<any> {
-    try {
-      this.logger.info('Loading HBS templates...');
-
-      const hbsTemplates = this.cfg.get('hbs_templates');
-      this.templatesURLPrefix = hbsTemplates.prefix;
-      const templates = hbsTemplates.templates;
-
-      let response = await fetch(this.templatesURLPrefix + templates['layout'],
-        {});
-      this.layoutTpl = await response.text();
-
-      response = await fetch(this.templatesURLPrefix + templates['body'], {});
-      this.bodyTpl = await response.text();
-
-      response =
-        await fetch(this.templatesURLPrefix + templates['subject'], {});
-      this.subjectTpl = await response.text();
-
-      if (templates['attachment']) {
-        response =
-          await fetch(this.templatesURLPrefix + templates['attachment'], {});
-        this.attachmentTpl = await response.text();
+        data: [
+          {
+            source: {
+              html: body
+            },
+            options: {
+              puppeteer_options: setting.puppeteer_options,
+            }
+          }
+        ]
       }
-
-      response =
-        await fetch(this.templatesURLPrefix + templates['resources'], {});
-      this.externalRrc = JSON.parse(await response.text());
-    } catch (err) {
-      this.logger.error('Error ocurred while loading HBS templates:', err);
-    }
-  }
-
-  /**
-   * used for rendering the pdf, the url for rendering is constructed using the
-   * configurations and pdf options
-   * @param htmlInvoice - Invoice
-   * @returns Promise<Buffer>
-   */
-  async renderPDF(htmlInvoice: any): Promise<Buffer> {
-    const apiKey = this.cfg.get('pdf-rendering:apiKey');
-    let baseURL = this.cfg.get('pdf-rendering:url');
-    const footerTemplatePrefix = 'pdf.footerTemplate';
-    const headerTemplatePrefix = 'pdf.headerTemplate';
-    let pdfOptions = [];
-    const paramSeparator = '&';
-    getJSONPaths(this.cfg.get('pdf-rendering:options'), '', pdfOptions);
-    let pdfOptionsURI = '';
-    for (let pdfOption of pdfOptions) {
-      if (pdfOption.includes(footerTemplatePrefix)) {
-        const footerTemplateURL = pdfOption.split('=')[1];
-        let response = await this.fetchURL(footerTemplateURL, { method: 'GET' });
-        // let footerTemplate = response.toString().replace(/(\r\n|\n|\r)/gm, '');
-        // footerTemplate = footerTemplate.replace(/\s+/g, '');
-        pdfOption = footerTemplatePrefix + '=' + response.toString();
-      } else if (pdfOption.includes(headerTemplatePrefix)) {
-        const headerTemplateURL = pdfOption.split('=')[1];
-        const response = await this.fetchURL(headerTemplateURL,
-          { method: 'GET' });
-        pdfOption = headerTemplatePrefix + '=' + response.toString();
+    }).then(
+      resp => {
+        const filename = basename(resp.combined.payload.upload_result.url);
+        invoice.documents.push(
+          {
+            id: 'invoice_pdf',
+            url: resp.combined.payload.upload_result.url,
+            caption: filename,
+            filename,
+            bytes: resp.combined.payload.upload_result.length,
+            content_type: 'application/pdf',
+          }
+        );
       }
-      pdfOptionsURI = pdfOptionsURI + pdfOption + paramSeparator;
-    }
-    if (!_.isEmpty(pdfOptionsURI)) {
-      // add query params
-      baseURL = baseURL + '?' + pdfOptionsURI;
-    }
-    // construct the pdfOptionsURI
-    const headers = {
-      'X-API-KEY': apiKey,
-      'Content-Type': 'text/html'
-    };
-    const options = {
-      method: 'POST',
-      body: htmlInvoice,
-      headers
-    };
-    return await this.fetchURL(baseURL, options);
+    );
+
+    invoice = await super.update(
+      {
+        items: [invoice],
+        total_count: 1,
+        subject: setting.access_control_subject,
+      },
+      context,
+    ).then(
+      resp => resp.items.pop().payload
+    );
+    
+    return invoice;
   }
 
-  private async fetchURL(url: string, options: any): Promise<Buffer> {
-    const stream = new MemoryStream(null, { readable: false });
-    const response = await fetch(url, options);
-    if (!response.ok) {
-      throw new Error('Error retrieving PDF!');
-    }
-    const pdfResult = await response.body;
-    pdfResult.pipe(stream);
+  private async handleEmailRenderResponse(
+    invoice: Invoice,
+    body: string,
+    setting: Setting,
+    context?: any,
+  ) {
+    const doc = invoice.documents.filter(
+      doc => doc.content_type === 'application/pdf' || doc.filename?.endsWith('.pdf')
+    )?.pop();
 
-    return new Promise<Buffer>((resolve, reject) => {
-      pdfResult.on('end', () => {
-        resolve(stream.toBuffer());
-      });
-    });
+    const buffer = await fetch(doc.url).then(
+      f => f.arrayBuffer()
+    ).then(
+      ab => Buffer.from(ab)
+    );
+
+    this.notification_service.send(
+      {
+        transport: 'email',
+        provider: setting.email_provider,
+        email: {
+          to: [invoice.recipient.contact.email],
+          cc: setting.email_in_cc,
+        },
+        subject: setting.email_subject_template?.replace(
+          '[InvoiceNumber]',
+          invoice.invoice_number
+        ) ?? invoice.invoice_number,
+        body,
+        attachments: [
+          {
+            buffer,
+            filename: doc.filename,
+            content_type: doc.content_type,
+          }
+        ],
+      },
+      context
+    );
   }
 
-  async stop(): Promise<any> {
-    this.logger.info('Shutting down');
-    await this.server.stop();
-    await this.events.stop();
-    await this.offsetStore.stop();
+  public async handleRenderResponse(
+    response: RenderResponse,
+    context?: CallContext, 
+  ) {
+    const [type, id] = response.id.split('/');
+    if (type !== 'invoice') return;
+    const subject: Subject = this.default_setting.access_control_subject ?? this.ApiKey;
+
+    const invoice = await this.read(
+      {
+        filters: [
+          {
+            filters: [
+              {
+                field: 'id',
+                value: id,
+                operation: Filter_Operation.eq,
+              }
+            ]
+          }
+        ],
+        limit: 1,
+        subject,
+      },
+      context
+    ).then(
+      response => response.items.shift().payload
+    );
+
+    const setting = await this.aggregator.getByIds<ShopResponse>(
+      invoice.shop_id,
+      ShopServiceDefinition,
+      subject,
+      context,
+    ).then(
+      m => this.extractShopSetting(m.get(invoice.shop_id)!.payload)
+    );
+
+    const bodies = response.responses.map(
+      r => JSON.parse(r.value.toString())
+    );
+    
+    const invoice_body = bodies.filter(
+      b => b.invoice
+    ).map(
+      b => b.invoice
+    ).join();
+
+    const email_body = bodies.filter(
+      b => b.email
+    ).map(
+      b => b.email
+    ).join();
+
+    if (invoice_body?.length) {
+      await this.handlePdfRenderResponse(
+        invoice,
+        invoice_body,
+        setting,
+        context,
+      );
+    }
+    
+    if (email_body?.length) {
+      await this.handleEmailRenderResponse(
+        invoice,
+        email_body,
+        setting,
+        context,
+      );
+    }
   }
 }
