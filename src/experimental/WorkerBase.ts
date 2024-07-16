@@ -19,7 +19,7 @@ import {
 import { Arango } from '@restorecommerce/chassis-srv/lib/database/provider/arango/base.js';
 import { createLogger, type Logger } from '@restorecommerce/logger';
 import { BindConfig } from '@restorecommerce/chassis-srv/lib/microservice/transport/provider/grpc/index.js';
-import { 
+import {
   ProtoMetadata,
   protoMetadata as CommandInterfaceMeta,
   CommandInterfaceServiceDefinition,
@@ -28,13 +28,15 @@ import { HealthDefinition } from '@restorecommerce/rc-grpc-clients/dist/generate
 import { ServerReflectionService } from 'nice-grpc-server-reflection';
 import { createServiceConfig } from '@restorecommerce/service-config';
 import { ServiceBase } from '@restorecommerce/resource-base-interface';
+import { initAuthZ } from '@restorecommerce/acs-client';
 
 export type ServiceConfig = Provider;
-export type ReflectionService = ServiceImplementation<any>
+export type ReflectionService = ServiceImplementation<any>;
+export type EventHandler = (msg: any, context?: any, config?: any, eventName?: string) => Promise<any>;
 export interface ServiceBindConfig<T extends CompatServiceDefinition> extends BindConfig<T> {
   name: string;
   meta: ProtoMetadata;
-}
+};
 
 export abstract class WorkerBase {
   private _cfg: ServiceConfig;
@@ -42,7 +44,6 @@ export abstract class WorkerBase {
   private _server: Server;
   private _db: DatabaseProvider;
   private _events: Events;
-  private _redisClient: RedisClient;
   private _offsetStore: OffsetStore;
   private _reflectionService: ReflectionService;
   private _commandInterface: CommandInterface;
@@ -78,7 +79,7 @@ export abstract class WorkerBase {
   protected set db(value: DatabaseProvider) {
     this._db = value;
   }
-  
+
   get offsetStore() {
     return this._offsetStore;
   }
@@ -93,14 +94,6 @@ export abstract class WorkerBase {
 
   protected set events(value: Events) {
     this._events = value;
-  }
-
-  get redisClient() {
-    return this._redisClient;
-  }
-
-  protected set redisClient(value: RedisClient) {
-    this._redisClient = value;
   }
 
   get commandInterface() {
@@ -121,15 +114,15 @@ export abstract class WorkerBase {
 
   protected readonly services = new Map<string, ServiceImplementation<any> | ServiceBase<any, any> | CommandInterface>();
   protected readonly topics = new Map<string, Topic>();
-  protected readonly serviceActions = new Map<string, ((msg: any, context: any, config: any, eventName: string) => Promise<void>)>();
-  protected readonly jobService = {
-    handleQueuedJob: (msg: any, context: any, config: any, eventName: string) => {
-      return this.serviceActions.get(msg?.type)(msg?.data?.payload, context, config, msg?.type).then(
+  protected readonly eventHandlers = new Map<string, EventHandler>();
+  protected readonly jobHandler: ServiceImplementation<any> = {
+    handleQueuedJob: (msg: any, context: any, config?: any, eventName?: string) => {
+      return this.eventHandlers.get(msg?.type)(msg?.data?.payload, context, config, msg?.type).then(
         () => this.logger?.info(`Job ${msg?.type} done.`),
         (err: any) => this.logger?.error(`Job ${msg?.type} failed: ${err}`)
       );
     }
-  }
+  };
 
   /**
    * Override this factory function and return a list of ServiceBindConfig[].
@@ -140,10 +133,11 @@ export abstract class WorkerBase {
   protected abstract initServices(): Promise<ServiceBindConfig<any>[]>;
 
   protected async bindServices(configs: ServiceBindConfig<any>[]) {
-    this.logger?.debug('bind Services', configs);
+    this.logger?.verbose('bind Services');
     const serviceNames = this.cfg.get('serviceNames');
-    configs.map(
+    configs.forEach(
       config => {
+        this.logger?.debug('bind Service:', serviceNames?.[config.name] ?? config.name);
         this.services.set(serviceNames?.[config.name] ?? config.name, config.implementation);
       }
     );
@@ -158,15 +152,15 @@ export abstract class WorkerBase {
   }
 
   protected async bindCommandInterface(configs: ServiceBindConfig<any>[]) {
-    this.logger?.debug('bind CommandInterface');
+    this.logger?.verbose('bind CommandInterface');
     this.commandInterface = [...this.services.values()].find(
       service => service instanceof CommandInterface
     ) as CommandInterface;
-    
+
     if (this.commandInterface) {
       return;
     }
-    
+
     const serviceName = this.cfg.get('serviceNames:cis');
     if (!serviceName) {
       this.logger?.warn(
@@ -176,12 +170,17 @@ export abstract class WorkerBase {
       return;
     }
 
+    const redisConfig = this.cfg.get('redis');
+    redisConfig.db = this.cfg.get('redis:db-indexes:db-subject');
+    const redisClient: RedisClient = createClient(redisConfig);
+    await redisClient.connect();
+
     this.commandInterface = new CommandInterface(
       this.server,
       this.cfg,
       this.logger,
       this.events,
-      this.redisClient,
+      redisClient,
     );
     this.services.set(serviceName, this.commandInterface);
     configs.push(
@@ -201,8 +200,21 @@ export abstract class WorkerBase {
     );
   }
 
-  protected bindRefelctions(configs: ServiceBindConfig<any>[]) {
-    this.logger?.debug('bind ReflectionService');
+  protected async bindJobHandler() {
+    this.logger?.verbose('bind JobHandler');
+    const serviceName = this.cfg.get('serviceNames:cis');
+    if (!serviceName) {
+      this.logger?.warn(
+        'JobHandler not initialized',
+        'serviceNames:jobs for JobHandler not set!',
+      );
+      return;
+    }
+    this.services.set(serviceName, this.jobHandler);
+  }
+
+  protected async bindRefelctions(configs: ServiceBindConfig<any>[]) {
+    this.logger?.verbose('bind ReflectionService');
     const serviceName = this.cfg.get('serviceNames:reflection');
     if (!serviceName) {
       this.logger?.warn(
@@ -236,9 +248,9 @@ export abstract class WorkerBase {
   }
 
   protected async bindHealthCheck() {
-    this.logger?.debug('bind HealthCheckService');
+    this.logger?.verbose('bind HealthCheckService');
     const name = this.cfg.get('serviceNames:health');
-    
+
     if (!name) {
       this.logger?.warn(
         'HealthCheckService not initialized',
@@ -286,7 +298,7 @@ export abstract class WorkerBase {
   }
 
   protected async bindEvents() {
-    this.logger?.debug('bind Events');
+    this.logger?.verbose('bind Events');
     const serviceNames = this.cfg.get('serviceNames');
     const kafkaCfg = this.cfg.get('events:kafka');
     this.events = new Events(kafkaCfg, this.logger);
@@ -297,19 +309,19 @@ export abstract class WorkerBase {
       const topicName = value.topic;
       const topic = await this.events.topic(topicName);
       const offsetValue: number = await this.offsetStore.getOffset(topicName);
-      this.logger?.info('subscribing to topic with offset value', topicName, offsetValue);
+      this.logger?.verbose('subscribing to topic with offset value', topicName, offsetValue);
       Object.entries(value.events as { [key: string]: string } ?? {}).forEach(
         ([eventName, handler]) => {
           const i = handler.lastIndexOf('.');
           const name = handler.slice(0, i);
           const serviceName = serviceNames?.[name] ?? name;
           const functionName = handler.slice(i+1);
-          this.serviceActions.set(eventName, this.bindHandler(serviceName, functionName));
+          this.eventHandlers.set(eventName, this.bindHandler(serviceName, functionName));
           topic.on(
             eventName as string,
-            this.serviceActions.get(eventName),
+            this.eventHandlers.get(eventName),
             { startingOffset: offsetValue }
-          )
+          );
         }
       );
       this.topics.set(key, topic);
@@ -333,13 +345,11 @@ export abstract class WorkerBase {
       };
       this.logger = logger = createLogger(logger_cfg);
     }
-    
+
     this.server = new Server(this.cfg.get('server'), this.logger);
     this.db = await database.get(this.cfg.get('database:main'), this.logger);
-    const redisConfig = this.cfg.get('redis');
-    redisConfig.db = this.cfg.get('redis:db-indexes:db-subject');
-    this.redisClient = createClient(redisConfig);
-    
+
+    await this.bindJobHandler();
     await this.bindEvents();
     const serviceConfigs = await this.initServices();
     await this.bindServices(serviceConfigs);
@@ -348,6 +358,7 @@ export abstract class WorkerBase {
     await this.bindRefelctions(serviceConfigs);
 
     // start server
+    await initAuthZ(this.cfg);
     await this.server.start();
     this.logger?.info('Server started successfully');
   }

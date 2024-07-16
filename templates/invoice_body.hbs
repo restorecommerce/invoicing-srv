@@ -1,0 +1,167 @@
+<h3>
+{{t 'l10n.invoice.title'}}
+</h3>
+
+<table id="invoicemeta" class="vclNoBorder vclFloatRight" style="min-width: 18em;">
+  <tr>
+    <td><b>{{t 'l10n.invoice.invoiceNumber'}}</b></td>
+    <td class="vclAlignRight">{{invoice.invoice_number}}</td>
+  </tr>
+  <tr>
+    <td>{{t 'l10n.invoice.orderNumber'}}</td>
+    <td class="vclAlignRight">{{invoice.references[0].id}}</td>
+  </tr>
+  <tr>
+    <td>{{t 'l10n.invoice.timestamp'}}</td>
+    <td class="vclAlignRight">{{df invoice.timestamp}}</td>
+  </tr>
+</table>
+
+<div class="vclClear"></div>
+<br>
+<br>
+
+<table id="address" class="vclTable">
+  <tbody>
+    {{#if invoice.recipient}}
+    <tr>
+      <td class="vclSpan-10p">{{t 'l10n.invoice.billingAddress'}}</td>
+      <td>
+      {{#if invoice.recipient.business_address}}
+        {{invoice.recipient.business_address.name}}
+      {{/if}}
+      {{#if invoice.recipient.residential_address}}
+        {{'l10n.invoice.salutation'
+          title=invoice.recipient.residential_address.title
+          familyName=invoice.recipient.residential_address.family_name
+          midName=invoice.recipient.residential_address.mid_name
+          givenName=invoice.recipient.residential_address.given_name
+        }}
+      {{/if}}
+      </td>
+    </tr>
+    <tr>
+      <td> </td>
+      <td>{{invoice.recipient.street}}</td>
+    </tr>
+    <tr>
+      <td> </td>
+      <td>{{invoice.recipient.postcode}} {{invoice.recipient.locality}}</td>
+    </tr>
+    <tr>
+      <td> </td>
+      <td>{{billing_country.name}}</td>
+    </tr>
+    {{else}}
+    <tr>
+      <td class="vclSpan-10p">{{t 'l10n.invoice.recipent'}}</td>
+      <td>
+        {{user.given_name}} {{user.family_name}}
+      </td>
+    </tr>
+    {{/if}}
+  </tbody>
+</table>
+
+<br>
+
+{{#each invoice.sections}}
+<table id="items" class="vclTable vclSumTable">
+  <thead>
+    <tr>
+      <th>{{t 'l10n.invoice.position'}}</th>
+      <th>{{t 'l10n.invoice.name'}}</th>
+      <th>{{t 'l10n.invoice.quantity'}}</th>
+      <th class="vclAlignRight">{{t 'l10n.invoice.itemPrice'}}</th>
+      <th class="vclAlignRight">{{t 'l10n.invoice.itemAmount'}}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each positions}}
+    <tr>
+      <td>{{id}}</td>
+      
+      {{#if product_item}}
+        <td>{{product.name}}</td>
+      {{/if}}
+      
+      {{#if fulfillment_item}}
+        <td>{{fulfillment_product.name}}</td>
+      {{/if}}
+      
+      {{#if manual_item}}
+        <td>{{name}}</td>
+      {{/if}}
+      
+      <td>{{quantity}}</td>
+
+      <td class="vclAlignRight">
+      {{#if unit_price.sale}}
+        {{nfc unit_price.regular_price}}
+      {{else}}
+        {{nfc unit_price.sale_price}}
+      {{/if}}
+      {{amount.currency.symbol}}
+      </td>
+
+      <td class="vclAlignRight">
+        {{nfc amount.net}} {{amount.currency.symbol}}
+      </td>
+
+    </tr>
+    {{/each}}
+
+    {{#each amounts}}
+    {{#each amount.vats}}
+    <tr class="vclNoBorder">
+      <td colspan="3">{{tax.name}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc vat}} {{amount.currency.symbol}}</td>
+    </tr>
+    {{/each}}
+
+    {{#if vouchers}}
+      {{#each voucherResources}}
+    <tr class="vclNoBorder">
+      <td colspan="3">{{t 'l10n.invoice.voucher'}}: {{code}}</td>
+      <td colspan="2" class="vclAlignRight">({{nfc value}}) {{amount.currency.symbol}}</td>
+    </tr>
+      {{/each}}
+    {{/if}}
+
+    {{#if discount}}
+    <tr class="vclNoBorder">
+      <td colspan="3">{{t 'l10n.invoice.discount'}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc discount}} {{cs}}</td>
+    </tr>
+    {{/if}}
+
+    <tr class="vclSumTableTotal">
+      <td colspan="3">{{t 'l10n.invoice.totalAmount'}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc total}} {{cs}}</td>
+    </tr>
+  </tbody>
+</table>
+{{/each}}
+
+<br>
+
+<p class="vclAlignCentered">
+  {{{t 'l10n.invoice.footer.title' shopName=shop.name}}}
+  <br>
+  <br>
+  <img src={{t 'l10n.invoice.logo.url'}}/>
+  <br>
+  <br>
+  {{t 'l10n.invoice.footer.text'
+    name=legal_address.business_address.name
+    street=legal_address.street
+    postcode=legal_address.postcode
+    locality=legal_address.locality
+    country=legal_address.country.name
+    vatID=shop.organization.vat_id
+  }}
+</p>
+
+<p class="vclAlignCentered">
+  {{t 'l10n.invoice.paymentMethod'}}: {{invoice.payment_method}}
+</p>

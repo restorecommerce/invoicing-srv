@@ -2,7 +2,6 @@
 import { type ServiceConfig } from '@restorecommerce/service-config';
 import { type Logger } from '@restorecommerce/logger';
 import {
-  Resource,
   ResourceResponse,
   ResourceList,
   ResourceListResponse,
@@ -16,11 +15,22 @@ import {
   createClient,
 } from '@restorecommerce/grpc-client';
 import { CompatServiceDefinition } from 'nice-grpc';
-import { CallContext } from 'nice-grpc-common';
+import {
+  type CallContext,
+} from 'nice-grpc-common';
 import { Subject } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/auth.js';
+import { Status } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/status.js';
 
-export type Aggregation<B extends ResourceListResponse | ResourceList, C> = B & C;
-export type IdNotSetCallback = (id?: string, entity?: string) => any;
+export type Aggregation<T extends ResourceListResponse | ResourceList = any, C = any> = T & C;
+export type OnMissingCallback = (id?: string, entity?: string) => any;
+export type ResolveMap = {
+  [key: string]: [string, Map<string, any>, ResolveMap?],
+};
+export const DEFAULT_STATUS_CALLBACK: OnMissingCallback = (id?: string, entity?: string): Status => ({
+  id,
+  code: 404,
+  message: `${entity ?? 'Entity'} ${id} is missing!`
+});
 
 export type CRUDServiceDefinition = CompatServiceDefinition & {
   methods: {
@@ -29,10 +39,16 @@ export type CRUDServiceDefinition = CompatServiceDefinition & {
     update: any;
     upsert: any;
     delete: any;
-  }
-}
+  };
+};
 
 export class ResponseMap<T extends ResourceResponse> extends Map<string, T> {
+  protected _all?: T[];
+
+  public get all() {
+    this._all = this._all ?? [...this.values()];
+    return this._all;
+  }
 
   constructor(
     items?: T[],
@@ -43,9 +59,24 @@ export class ResponseMap<T extends ResourceResponse> extends Map<string, T> {
     ));
   }
 
-  public override get(id: string, strict?: IdNotSetCallback): T {
-    if (strict && !this.has(id)) {
-      const error = strict(id);
+  public override set(key: string, value: T) {
+    delete this._all;
+    return super.set(key, value);
+  }
+
+  public override clear() {
+    delete this._all;
+    return super.clear();
+  }
+
+  public override delete(key: string) {
+    delete this._all;
+    return super.delete(key);
+  }
+
+  public override get(id: string, onMissing?: OnMissingCallback): T {
+    if (onMissing && !this.has(id)) {
+      const error = onMissing(id, this.entity);
       if (error) {
         throw error;
       }
@@ -53,26 +84,30 @@ export class ResponseMap<T extends ResourceResponse> extends Map<string, T> {
     return super.get(id);
   }
 
-  public getMany(ids: string[], strict?: IdNotSetCallback): T[] {
-    return ids.map(id => this.get(id, strict));
+  public getMany(ids: string[], onMissing?: OnMissingCallback): T[] {
+    return ids.map(id => this.get(id, onMissing));
   }
 
-  public getAll(): T[] {
-    return [...this.values()];
+  public async tryGet(
+    id: string,
+    onMissing: OnMissingCallback = DEFAULT_STATUS_CALLBACK
+  ) {
+    return this.get(id, onMissing);
   }
 
-  public async getPromise(id: string, strict?: IdNotSetCallback) {
-    return this.get(id, strict);
+  public async tryGetMany(
+    ids: string[],
+    onMissing: OnMissingCallback = DEFAULT_STATUS_CALLBACK
+  ) {
+    return this.getMany(ids, onMissing);
   }
 
-  public async getManyPromises(ids: string[], strict?: IdNotSetCallback) {
-    return this.getMany(ids, strict);
-  }
-
-  readonly map = [...this.values()].map;
-  readonly flatMap = [...this.values()].flatMap;
-  readonly filter = [...this.values()].filter;
-  readonly find = [...this.values()].find;
+  public readonly map = this.all.map;
+  public readonly flatMap = this.all.flatMap;
+  public readonly filter = this.all.filter;
+  public readonly find = this.all.find;
+  public readonly some = this.all.some;
+  public readonly every = this.all.every;
 }
 
 export class ClientRegister {
@@ -90,7 +125,7 @@ export class ClientRegister {
     if (this.register.has(definition.fullName.toString())) {
       return this.register.get(definition.fullName.toString());
     }
-    
+
     const config = this.cfg.get(
       `client:${definition.name}`
     ) ?? Object.values(
@@ -101,7 +136,7 @@ export class ClientRegister {
         || client.name === definition.name
       )
     );
-    
+
     const client = createClient(
       {
         ...config,
@@ -152,14 +187,14 @@ export class ResourceAggregator {
   public async aggregate<T extends ResourceListResponse | ResourceList, C = any>(
     target: T,
     sources: {
-      service: CRUDServiceDefinition,
-      map_by_ids: (target: T) => string[],
-      container: string
+      service: CRUDServiceDefinition;
+      map_by_ids: (target: T) => string[];
+      container: string;
     }[],
     template?: C,
     subject?: Subject,
     context?: CallContext,
-    strict?: IdNotSetCallback,
+    strict?: OnMissingCallback,
   ): Promise<Aggregation<T, C>> {
     const ids = sources.map(
       source => source.map_by_ids(target)
@@ -185,7 +220,28 @@ export class ResourceAggregator {
           )
         )
       })),
-    ) as Aggregation<T, C>
+    ) as Aggregation<T, C>;
     return aggregation;
   }
 }
+
+export const resolve = <T extends object>(
+  entity: T,
+  resolveMap?: ResolveMap,
+): any => Object.assign(
+  entity,
+  ...Object.entries(entity).filter(
+    ([key]) => resolveMap && key in resolveMap
+  ).flatMap(
+    ([key, value]) => {
+      const r = resolveMap[key];
+      return (Array.isArray(value) ? value : [value]).map(
+        value => ({
+          [r[0]]: resolve(
+            r[1].get(value.toString()), r[2] ?? resolveMap,
+          )
+        })
+      );
+    }
+  )
+);

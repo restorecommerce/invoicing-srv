@@ -1,10 +1,12 @@
-import { basename } from 'path';
+import { format } from 'node:util';
+import { basename } from 'node:path';
+import { RedisClientType as RedisClient } from 'redis';
 import {
   ResourcesAPIBase,
   ServiceBase
 } from '@restorecommerce/resource-base-interface';
 import {
-  Client,
+  type Client,
   GrpcClientConfig,
   createChannel,
   createClient,
@@ -26,13 +28,16 @@ import {
   OperationStatus,
   StatusListResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/status.js';
-import { CallContext } from 'nice-grpc-common';
-import { ServiceConfig } from './experimental/WorkerBase.js';
-import { Logger } from '@restorecommerce/logger';
+import {
+  type CallContext
+} from 'nice-grpc-common';
+import { type ServiceConfig } from '../experimental/WorkerBase.js';
+import { type Logger } from '@restorecommerce/logger';
 import {
   DeleteRequest,
   DeleteResponse,
-  ReadRequest
+  ReadRequest,
+  Sort_SortOrder
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/resource_base.js';
 import {
   ACSClientContext,
@@ -41,6 +46,7 @@ import {
   DefaultResourceFactory,
   Operation,
   access_controlled_function,
+  access_controlled_service,
   injects_meta_data,
 } from '@restorecommerce/acs-client';
 import { Subject } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/auth.js';
@@ -62,6 +68,7 @@ import {
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/ostorage.js';
 import {
   Shop,
+  ShopListResponse,
   ShopResponse,
   ShopServiceDefinition,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/shop.js';
@@ -109,43 +116,46 @@ import {
   Filter_ValueType,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/filter.js';
 import {
-  Aggregation,
+  type Aggregation,
   ResourceAggregator,
   ResponseMap,
-} from './experimental/ResourceAggregator.js';
-import { Readable, Transform } from 'stream';
+} from '../experimental/ResourceAggregator.js';
+import { Readable, Transform } from 'node:stream';
+import { InvoiceNumberService } from './invoice_number_srv.js';
 
 export type ProductNature = PhysicalProduct | VirtualProduct | ServiceProduct;
 export type ProductVariant = PhysicalVariant | VirtualVariant | ServiceVariant;
 export type PositionProduct = ProductVariant | Bundle;
 export type AggregatedPosition = Position & {
   product: PositionProduct;
-}
-
-export type Template = {
-  shops?: ResponseMap<ShopResponse>,
-  customers?: ResponseMap<CustomerResponse>,
-  organization?: ResponseMap<OrganizationResponse>,
-  users?: ResponseMap<UserResponse>,
-  products?: ResponseMap<ProductResponse>,
-  taxes?: ResponseMap<TaxResponse>,
-  manufacturers?: ResponseMap<ManufacturerResponse>,
-  fulfillments_products?: ResponseMap<FulfillmentProductResponse>
 };
+
+export type AggregationTemplate = {
+  shops?: ResponseMap<ShopResponse>;
+  customers?: ResponseMap<CustomerResponse>;
+  organization?: ResponseMap<OrganizationResponse>;
+  users?: ResponseMap<UserResponse>;
+  products?: ResponseMap<ProductResponse>;
+  taxes?: ResponseMap<TaxResponse>;
+  manufacturers?: ResponseMap<ManufacturerResponse>;
+  fulfillments_products?: ResponseMap<FulfillmentProductResponse>;
+};
+
+export type AggregatedInvoice = Aggregation<InvoiceList, AggregationTemplate>;
 
 export type Setting = {
   access_control_subject?: Subject;
-  default_bucket?: string,
-  invoice_html_bucket?: string
-  invoice_pdf_bucket?: string,
-  disable_invoice_html_storage?: string,
-  disable_invoice_pdf_storage?: string,
-  invoice_html_bucket_options?: any
-  invoice_pdf_bucket_options?: any
-  puppeteer_options?: any,
-  email_provider?: string,
-  email_subject_template?: string,
-  email_in_cc?: string[],
+  default_bucket?: string;
+  invoice_html_bucket?: string;
+  invoice_pdf_bucket?: string;
+  disable_invoice_html_storage?: string;
+  disable_invoice_pdf_storage?: string;
+  invoice_html_bucket_options?: any;
+  invoice_pdf_bucket_options?: any;
+  puppeteer_options?: any;
+  email_provider?: string;
+  email_subject_template?: string;
+  email_in_cc?: string[];
 };
 
 export type KnownUrns = {
@@ -169,8 +179,160 @@ export type KnownUrns = {
   invoice_pdf_puppeteer_options?: string;
   enable_invoice_html_storage?: string;
   enable_invoice_pdf_storage?: string;
+  invoice_number_start?: string;
+  invoice_number_increment?: string;
+  invoice_number_pattern?: string;
 };
 
+export type InvoiceNumber = {
+  id?: string;
+  shop_id?: string;
+  increment?: number;
+  invoice_number?: string;
+};
+
+private extractInvoiceDetails(
+  invoice: Invoice
+) {
+  const clone = {
+    ...invoice
+  };
+  delete clone.meta;
+  delete clone.documents;
+  delete clone.sections;
+  return clone;
+};
+
+private mergeProductVariantRecursive(
+  nature: ProductNature,
+  variant_id: string,
+): ProductVariant {
+  const variant = nature?.variants?.find(v => v.id === variant_id);
+  if (variant?.parent_variant_id) {
+    const template = this.mergeProductVariantRecursive(
+      nature, variant.parent_variant_id
+    );
+    return {
+      ...template,
+      ...variant,
+    };
+  }
+  else {
+    return variant;
+  }
+};
+
+private mergeProductVariant(
+  product: IndividualProduct,
+  variant_id: string,
+): ProductVariant {
+  const nature = product.physical ?? product.virtual ?? product.service;
+  const variant = this.mergeProductVariantRecursive(nature, variant_id);
+
+  return {
+    ...product,
+    ...variant,
+  };
+};
+
+private aggregatePosition(
+  aggregation: AggregatedInvoice,
+  position: Position,
+): AggregatedPosition {
+  const product = position.product_item && aggregation.products.get(
+    position.product_item.product_id
+  );
+  const variant = product.payload.product && this.mergeProductVariant(
+    product.payload.product,
+    position.product_item.variant_id
+  );
+
+  return {
+    ...position,
+    product: variant && product.payload.bundle
+  };
+};
+
+private extractShopConfigs(
+  aggregation: AggregatedInvoice,
+  shop_id: string
+) {
+  const shop = aggregation.shops.get(shop_id)!.payload;
+  const options = Object.assign({},
+    ...shop.settings.filter(
+      s => s.id === this.urns.render_options
+    ).map(
+      s => JSON.parse(s.value)
+    )
+  );
+  const templates = Buffer.from(
+    JSON.stringify(
+      Object.assign({},
+        ...shop.settings.filter(
+          s => s.id === this.urns.pdf_template_url
+        ).map(
+          (s, i) => ({ [i]: s.value })
+        )
+      )
+    )
+  );
+  const strategy = shop.settings.find(
+    s => s.id === this.urns.render_strategy
+  )?.value ?? Payload_Strategy.INLINE;
+  const style_url = shop.settings.find(
+    s => s.id ===this.urns.render_style
+  )?.value;
+
+  return {
+    options,
+    templates,
+    strategy,
+    style_url,
+  };
+};
+
+private resolveInvoice(
+  aggregation: AggregatedInvoice,
+  invoice: Invoice,
+) {
+  return {
+    ...invoice,
+    customer: this.resolveCustomer(aggregation, invoice.customer_id),
+    shop: this.resolveShop(aggregation, invoice.shop_id),
+    user: this.resolveUser(invoice.user_id),
+    sections: invoice.sections?.map(
+      section => ({
+        ...section,
+        amounts: section.amounts?.map(
+          amount => ({
+            ...amount,
+            currency: this.resolveCurrency()
+          })
+        )
+      })
+    )
+  }
+}
+
+private resolveData(
+  aggregation: AggregatedInvoice,
+  invoice: Invoice,
+) {
+  return Buffer.from(
+    JSON.stringify({
+      invoice: this.resolveInvoice(
+        aggregation,
+        invoice,
+      ),
+      config: this.resolveShopConfig(
+        aggregation,
+        invoice.shop_id,
+      )
+    })
+  );
+}
+
+@access_controlled_service
 export class InvoiceService
   extends ServiceBase<InvoiceListResponse, InvoiceList>
   implements InvoiceServiceImplementation
@@ -202,18 +364,20 @@ export class InvoiceService
     const apiKey = this.cfg.get('authentication:apiKey');
     return apiKey
       ? {
-          id: 'apiKey',
-          token: apiKey,
-        }
+        id: 'apiKey',
+        token: apiKey,
+      }
       : undefined;
   }
 
   constructor(
     protected readonly topic: Topic,
     protected readonly db: DatabaseProvider,
+    protected readonly redis: RedisClient,
     protected readonly cfg: ServiceConfig,
+    protected readonly invoice_number_srv: InvoiceNumberService,
     readonly logger: Logger,
-    protected readonly aggregator = new ResourceAggregator(cfg, logger)
+    protected readonly aggregator = new ResourceAggregator(cfg, logger),
   ) {
     super(
       cfg.get('database:main:entities:0') ?? 'invoice',
@@ -222,7 +386,7 @@ export class InvoiceService
       new ResourcesAPIBase(
         db,
         cfg.get('database:main:collections:0') ?? 'invoices',
-        cfg.get('fieldHandlers:invoice'),
+        cfg.get('fieldHandlers'),
       ),
       !!cfg.get('events:enableEvents'),
     );
@@ -251,14 +415,14 @@ export class InvoiceService
   protected getInvoicesByIds(
     ids: string[],
     subject?: Subject,
-    context?: any
+    context?: any,
   ): Promise<InvoiceListResponse> {
     ids = [...new Set(ids)];
     if (ids.length > 1000) {
       throw {
         code: 500,
         message: 'Query for fulfillments exceeds limit of 1000!'
-      } as OperationStatus
+      } as OperationStatus;
     }
 
     const request = ReadRequest.fromPartial({
@@ -286,7 +450,88 @@ export class InvoiceService
     request: RequestInvoiceNumber,
     context?: CallContext,
   ): Promise<InvoiceNumberResponse> {
-    return null;
+    const shop = await this.aggregator.getByIds<ShopResponse>(
+      request.shop_id!,
+      ShopServiceDefinition,
+      request.subject,
+      context,
+    ).then(
+      resp => resp.get(request.shop_id)?.payload
+    );
+
+    const key = `invoiceCounter:${shop.id}`;
+    const increment = Number.parseInt(shop.settings.find(
+      attr => attr.id === this.urns.invoice_number_increment
+    ).value) || 1;
+
+    const current = await this.redis.exists(
+      key
+    ).then(
+      exists => {
+        if (exists) {
+          return this.redis.incrBy(key, increment);
+        }
+        else {
+          return this.invoice_number_srv.read(
+            {
+              filters: [{
+                filters: [{
+                  field: 'shop_id',
+                  value: shop.id,
+                }]
+              }],
+              limit: 1,
+              sorts: [
+                {
+                  field: 'ordinate',
+                  order: Sort_SortOrder.DESCENDING,
+                }
+              ]
+            },
+            context
+          ).then(
+            resp => {
+              return resp.items?.pop()?.payload.counter + 1;
+            }
+          );
+        }
+      }
+    ).then(
+      async current => {
+        if (current === undefined) {
+          current = Number.parseInt(shop.settings.find(
+            a => a.id === this.urns.invoice_number_start
+          )?.value) || 0
+          await this.redis.set(key, current);
+        }
+        return current;
+      }
+    );
+
+    const pattern = shop.settings.find(
+      a => a.id === this.urns.invoice_number_pattern
+    );
+    const invoice_number = format(pattern, current);
+    await this.invoice_number_srv.upsert(
+      {
+        items: [{
+          id: shop.id,
+          shop_id: shop.id,
+          counter: current,
+        }],
+        total_count: 1,
+        subject: request.subject
+      },
+      context,
+    );
+
+    return {
+      invoice_number,
+      operation_status: {
+        code: 200,
+        message: 'SUCCESS'
+      }
+    };
   }
 
   protected async aggregate(
@@ -294,7 +539,7 @@ export class InvoiceService
     subject?: Subject,
     context?: CallContext,
     evaluate?: boolean,
-  ): Promise<Aggregation<InvoiceList, Template>> {
+  ): Promise<Aggregation<InvoiceList, AggregationTemplate>> {
     const aggregation = await this.aggregator.aggregate(
       invoice_list,
       [
@@ -331,7 +576,7 @@ export class InvoiceService
           container: 'fulfillment_products'
         },
       ],
-      {} as Template,
+      {} as AggregationTemplate,
       subject,
       context,
     ).then(
@@ -383,7 +628,7 @@ export class InvoiceService
             container: 'taxes'
           }
         ],
-        {} as Template,
+        {} as AggregationTemplate,
         subject,
         context,
       )
@@ -477,120 +722,6 @@ export class InvoiceService
     request.items = aggregation.items;
     const response = await super.upsert(request, context);
 
-    const extractInvoiceDetails = (
-      invoice: Invoice
-    ) => {
-      const clone = {
-        ...invoice
-      };
-      delete clone.meta;
-      delete clone.documents;
-      delete clone.sections;
-      return clone;
-    }
-
-    const mergeProductVariantRecursive = (
-      nature: ProductNature,
-      variant_id: string,
-    ): ProductVariant => {
-      const variant = nature?.variants?.find(v => v.id === variant_id);
-      if (variant?.parent_variant_id) {
-        const template = mergeProductVariantRecursive(
-          nature, variant.parent_variant_id
-        );
-        return {
-          ...template,
-          ...variant,
-        };
-      }
-      else {
-        return variant;
-      }
-    };
-
-    const mergeProductVariant = (
-      product: IndividualProduct,
-      variant_id: string,
-    ): ProductVariant => {
-      const nature = product.physical ?? product.virtual ?? product.service;
-      const variant = mergeProductVariantRecursive(nature, variant_id);
-
-      return {
-        ...product,
-        ...variant,
-      };
-    };
-
-    const aggregatePosition = (
-      position: Position
-    ): AggregatedPosition => {
-      const product = position.product_item && aggregation.products.get(
-        position.product_item.product_id
-      );
-      const variant = product.payload.product && mergeProductVariant(
-        product.payload.product,
-        position.product_item.variant_id
-      );
-      
-      return {
-        ...position,
-        product: variant && product.payload.bundle
-      };
-    };
-
-    const extractShopConfigs = (
-      shop_id: string
-    ) => {
-      const shop = aggregation.shops.get(shop_id)!.payload;
-      const options = Object.assign({}, 
-        ...shop.settings.filter(
-          s => s.id === this.urns.render_options
-        ).map(
-          s => JSON.parse(s.value)
-        )
-      );
-      const templates = Buffer.from(
-        JSON.stringify(
-          Object.assign({},
-            ...shop.settings.filter(
-              s => s.id === this.urns.pdf_template_url
-            ).map(
-              (s, i) => ({ [i]: s.value })
-            )
-          )
-        )
-      );
-      const strategy = shop.settings.find(
-        s => s.id === this.urns.render_strategy
-      )?.value ?? Payload_Strategy.INLINE;
-      const style_url = shop.settings.find(
-        s => s.id ===this.urns.render_style
-      )?.value;
-
-      return {
-        options,
-        templates,
-        strategy,
-        style_url,
-      }
-    };
-
-    const extractData = (
-      invoice: Invoice
-    ) => Buffer.from(
-      JSON.stringify({
-        headers: extractInvoiceDetails(invoice),
-        sections: invoice.sections?.map(
-          section => ({
-            ...section,
-            positions: section.positions?.map(
-              aggregatePosition
-            )
-          })
-        )
-      })
-    );
-
     response.items.forEach(
       item => this.topic.emit(
         'renderRequest',
@@ -599,8 +730,7 @@ export class InvoiceService
           payloads: [
             {
               content_type: 'text/html',
-              data: extractData(item.payload),
-              ...extractShopConfigs(item.payload.shop_id),
+              data: this.resolveData(aggregation, item.payload),
             }
           ],
         } as RenderRequest
@@ -623,7 +753,7 @@ export class InvoiceService
   ): Promise<InvoiceListResponse> {
     return null;
   }
-  
+
   @access_controlled_function({
     action: AuthZAction.EXECUTE,
     operation: Operation.isAllowed,
@@ -749,7 +879,7 @@ export class InvoiceService
         done(null, data);
       }
     });
-    
+
     invoice = await this.ostorage_service.put(
       stream.pipe(transformer)
     ).then(
@@ -780,7 +910,7 @@ export class InvoiceService
     ).then(
       resp => resp.items.pop().payload
     );
-    
+
     stream.destroy();
     return invoice;
   }
@@ -799,7 +929,7 @@ export class InvoiceService
         context,
       );
     }
-    
+
     await this.pdf_rendering_service.render({
       combined: {
         output: {
@@ -852,7 +982,7 @@ export class InvoiceService
     ).then(
       resp => resp.items.pop().payload
     );
-    
+
     return invoice;
   }
 
@@ -899,7 +1029,7 @@ export class InvoiceService
 
   public async handleRenderResponse(
     response: RenderResponse,
-    context?: CallContext, 
+    context?: CallContext,
   ) {
     const [type, id] = response.id.split('/');
     if (type !== 'invoice') return;
@@ -938,7 +1068,7 @@ export class InvoiceService
     const bodies = response.responses.map(
       r => JSON.parse(r.value.toString())
     );
-    
+
     const invoice_body = bodies.filter(
       b => b.invoice
     ).map(
@@ -959,7 +1089,7 @@ export class InvoiceService
         context,
       );
     }
-    
+
     if (email_body?.length) {
       await this.handleEmailRenderResponse(
         invoice,
