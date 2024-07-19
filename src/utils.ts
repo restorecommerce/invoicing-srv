@@ -14,10 +14,6 @@ import {
   StatusListResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/status.js';
 import {
-  type CallContext
-} from 'nice-grpc-common';
-import { type Logger } from '@restorecommerce/logger';
-import {
   DeleteRequest,
   DeleteResponse,
   ReadRequest,
@@ -33,7 +29,9 @@ import {
   access_controlled_service,
   injects_meta_data,
 } from '@restorecommerce/acs-client';
-import { Subject } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/auth.js';
+import {
+  Subject
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/auth.js';
 import {
   Payload_Strategy,
   RenderRequest,
@@ -52,28 +50,27 @@ import {
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/ostorage.js';
 import {
   Shop,
-  ShopListResponse,
-  ShopResponse,
-  ShopServiceDefinition,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/shop.js';
 import {
-  CustomerResponse,
+  Customer,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/customer.js';
 import {
-  OrganizationResponse,
+  Organization,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/organization.js';
 import {
-  ContactPointResponse,
+  ContactPoint,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/contact_point.js';
 import {
-  AddressResponse,
+  Address,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/address.js';
 import {
-  CountryResponse,
+  Country,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/country.js';
 import {
-  UserResponse,
-  UserServiceDefinition,
+  Currency,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/currency.js';
+import {
+  User,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/user.js';
 import {
   Bundle,
@@ -89,22 +86,36 @@ import {
   VirtualVariant
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/product.js';
 import {
-  ManufacturerResponse,
-  ManufacturerServiceDefinition,
+  Manufacturer,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/manufacturer.js';
 import {
+  ProductCategory,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/product_category.js';
+import {
+  ProductPrototype,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/product_prototype.js';
+import {
+  TaxType,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/tax_type.js';
+import {
   Tax,
-  TaxResponse,
-  TaxServiceDefinition,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/tax.js';
 import {
-  FulfillmentProductResponse,
+  FulfillmentProduct,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/fulfillment_product.js';
+import {
+  Locale,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/locale.js';
+import {
+  Timezone,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/timezone.js';
 import {
   type Aggregation,
   resolve,
+  Resolver,
+  ArrayResolver,
   ResourceAggregator,
-  ResponseMap,
+  ResourceMap,
 } from './experimental/ResourceAggregator.js';
 
 export type ProductNature = PhysicalProduct | VirtualProduct | ServiceProduct;
@@ -115,20 +126,26 @@ export type AggregatedPosition = Position & {
 };
 
 export type AggregationTemplate = {
-  shops?: ResponseMap<ShopResponse>;
-  customers?: ResponseMap<CustomerResponse>;
-  organizations?: ResponseMap<OrganizationResponse>;
-  contact_points?: ResponseMap<ContactPointResponse>;
-  addresses?: ResponseMap<AddressResponse>;
-  countries?: ResponseMap<CountryResponse>;
-  users?: ResponseMap<UserResponse>;
-  products?: ResponseMap<ProductResponse>;
-  taxes?: ResponseMap<TaxResponse>;
-  manufacturers?: ResponseMap<ManufacturerResponse>;
-  fulfillments_products?: ResponseMap<FulfillmentProductResponse>;
+  shops?: ResourceMap<Shop>;
+  customers?: ResourceMap<Customer>;
+  organizations?: ResourceMap<Organization>;
+  contact_points?: ResourceMap<ContactPoint>;
+  addresses?: ResourceMap<Address>;
+  countries?: ResourceMap<Country>;
+  users?: ResourceMap<User>;
+  products?: ResourceMap<Product>;
+  taxes?: ResourceMap<Tax>;
+  tax_types?: ResourceMap<TaxType>;
+  manufacturers?: ResourceMap<Manufacturer>;
+  categories?: ResourceMap<ProductCategory>;
+  prototypes?: ResourceMap<ProductPrototype>;
+  fulfillments_products?: ResourceMap<FulfillmentProduct>;
+  locales?: ResourceMap<Locale>;
+  timezones?: ResourceMap<Timezone>;
+  currencies?: ResourceMap<Currency>;
 };
 
-export type AggregatedInvoice = Aggregation<InvoiceList, AggregationTemplate>;
+export type AggregatedInvoiceList = Aggregation<InvoiceList, AggregationTemplate>;
 
 export type Setting = {
   access_control_subject?: Subject;
@@ -178,76 +195,15 @@ export type InvoiceNumber = {
   invoice_number?: string;
 };
 
-export const extractInvoiceDetails = (
-  invoice: Invoice
+const resolveShopConfig = (
+  aggregation: AggregatedInvoiceList,
+  shop_id: string,
+  urns: KnownUrns,
 ) => {
-  const clone = {
-    ...invoice
-  };
-  delete clone.meta;
-  delete clone.documents;
-  delete clone.sections;
-  return clone;
-};
-
-private mergeProductVariantRecursive(
-  nature: ProductNature,
-  variant_id: string,
-): ProductVariant {
-  const variant = nature?.variants?.find(v => v.id === variant_id);
-  if (variant?.parent_variant_id) {
-    const template = this.mergeProductVariantRecursive(
-      nature, variant.parent_variant_id
-    );
-    return {
-      ...template,
-      ...variant,
-    };
-  }
-  else {
-    return variant;
-  }
-};
-
-private mergeProductVariant(
-  product: IndividualProduct,
-  variant_id: string,
-): ProductVariant {
-  const nature = product.physical ?? product.virtual ?? product.service;
-  const variant = this.mergeProductVariantRecursive(nature, variant_id);
-
-  return {
-    ...product,
-    ...variant,
-  };
-};
-
-private aggregatePosition(
-  aggregation: AggregatedInvoice,
-  position: Position,
-): AggregatedPosition {
-  const product = position.product_item && aggregation.products.get(
-    position.product_item.product_id
-  );
-  const variant = product.payload.product && this.mergeProductVariant(
-    product.payload.product,
-    position.product_item.variant_id
-  );
-
-  return {
-    ...position,
-    product: variant && product.payload.bundle
-  };
-};
-
-private extractShopConfigs(
-  aggregation: AggregatedInvoice,
-  shop_id: string
-) {
-  const shop = aggregation.shops.get(shop_id)!.payload;
+  const shop = aggregation.shops.get(shop_id);
   const options = Object.assign({},
     ...shop.settings.filter(
-      s => s.id === this.urns.render_options
+      s => s.id === urns.render_options
     ).map(
       s => JSON.parse(s.value)
     )
@@ -256,7 +212,7 @@ private extractShopConfigs(
     JSON.stringify(
       Object.assign({},
         ...shop.settings.filter(
-          s => s.id === this.urns.pdf_template_url
+          s => s.id === urns.pdf_template_url
         ).map(
           (s, i) => ({ [i]: s.value })
         )
@@ -264,10 +220,10 @@ private extractShopConfigs(
     )
   );
   const strategy = shop.settings.find(
-    s => s.id === this.urns.render_strategy
+    s => s.id === urns.render_strategy
   )?.value ?? Payload_Strategy.INLINE;
   const style_url = shop.settings.find(
-    s => s.id ===this.urns.render_style
+    s => s.id ===urns.render_style
   )?.value;
 
   return {
@@ -279,36 +235,123 @@ private extractShopConfigs(
 };
 
 const resolveInvoice = (
-  aggregation: AggregatedInvoice,
+  aggregation: AggregatedInvoiceList,
   invoice: Invoice,
-) => resolve(
-  invoice,
-  {
-    customer: ['customer', aggregation.customers, {
-      test: ['something', aggregation.customers, {}]
-    }],
-    shop_id: ['shop', aggregation.shops],
-    user_id: ['user', aggregation.users],
-    organization_id: ['organization', aggregation.organizations],
-    contact_point_ids: ['contact_points', aggregation.contact_points],
-    country_id: ['country', aggregation.countries],
-    address_id: ['address', aggregation.addresses],
-    product_id: ['product', aggregation.products],
+) => {
+  const contact_points_resolver = ArrayResolver(
+    'contact_point_ids',
+    aggregation.contact_points,
+    {
+      physical_address: Resolver(
+        'physical_address_id',
+        aggregation.addresses,
+        {
+          country: Resolver('country_id', aggregation.countries),
+        }
+      ),
+      locale: Resolver('locale_id', aggregation.locales),
+      timezone: Resolver('timezone_id', aggregation.timezones),
+    }
+  );
+  const organization_resolver = Resolver(
+    'organization_id',
+    aggregation.organizations,
+    {
+      contact_points: contact_points_resolver
+    }
+  );
+  const user_resolver = Resolver('user_id', aggregation.users, {
+    locale: Resolver('locale_id', aggregation.locales),
+    timezone: Resolver('timezone_id', aggregation.timezones),
+  });
+  const individual_product_resolver = {
+    category: Resolver('category_id', aggregation.categories),
+    manufacturer: Resolver('manufacturer_id', aggregation.manufacturers),
+    origin_country: Resolver('origin_country_id', aggregation.countries),
+    prototype: Resolver('prototype_id', aggregation.prototypes),
   }
-);
+  const product_resolver = Resolver(
+    'product_id',
+    aggregation.products,
+    {
+      product: individual_product_resolver,
+      bundle: {
+        products: [{
+          product: Resolver(
+            'product_id',
+            aggregation.products,
+            individual_product_resolver
+          )
+        }]
+      }
+    }
+  );
+  const currency_resolver = Resolver('currency_id', aggregation.currencies),
+  const tax_resolver = Resolver('tax_id', aggregation.taxes, {
+    type: Resolver('type_id', aggregation.tax_types),
+  });
+  const amount_resolver = {
+    currency: currency_resolver,
+    vats: [{
+      tax: tax_resolver
+    }]
+  };
+  const fulfillment_prodyct_resolver = {
+    product: Resolver(
+      'product_id',
+      aggregation.fulfillments_products,
+      {
+        tax: tax_resolver,
+        country: Resolver('country_id', aggregation.countries),
+      }
+    ),
+  }
+
+  return resolve(
+    invoice,
+    {
+      customer: Resolver('customer_id', aggregation.customers, {
+        commercial: organization_resolver,
+        public_sector: organization_resolver,
+        private: {
+          user: user_resolver,
+          contact_points: contact_points_resolver
+        },
+      }),
+      shop: Resolver('shop_id', aggregation.shops, {
+        organization: organization_resolver
+      }),
+      user: user_resolver,
+      sections: [{
+        positions: [{
+          product_item: {
+            product: product_resolver,
+          },
+          fulfillment_item: fulfillment_prodyct_resolver,
+          amount: amount_resolver,
+          unit_price: {
+            currency: currency_resolver,
+          }
+        }],
+        amounts: [
+          amount_resolver
+        ]
+      }]
+    }
+  );
+}
 
 export const resolveRenderData = (
-  aggregation: AggregatedInvoice,
+  aggregation: AggregatedInvoiceList,
   invoice: Invoice,
+  urns: KnownUrns,
 ) => Buffer.from(
   JSON.stringify({
-    invoice: resolveInvoice(
-      aggregation,
-      invoice,
-    ),
+    invoice: resolveInvoice(aggregation, invoice),
     config: resolveShopConfig(
       aggregation,
       invoice.shop_id,
+      urns,
     )
   })
 );

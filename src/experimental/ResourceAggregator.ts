@@ -2,7 +2,7 @@
 import { type ServiceConfig } from '@restorecommerce/service-config';
 import { type Logger } from '@restorecommerce/logger';
 import {
-  ResourceResponse,
+  Resource,
   ResourceList,
   ResourceListResponse,
   Filter_ValueType,
@@ -23,9 +23,42 @@ import { Status } from '@restorecommerce/rc-grpc-clients/dist/generated-server/i
 
 export type Aggregation<T extends ResourceListResponse | ResourceList = any, C = any> = T & C;
 export type OnMissingCallback = (id?: string, entity?: string) => any;
-export type ResolveMap = {
-  [key: string]: [string, Map<string, any>, ResolveMap?],
+export type ResolverParams<T = any, M = ResolverMap> = [string, Map<string, T>, M?, T?]
+export type ArrayResolverParams<T = any, M = ResolverMap> = [string, Map<string, T>, M[]?, T[]?]
+export type ResolverMap<T = any> = {
+  [K in keyof T]?: ResolverParams<T[K]> | ArrayResolverParams<T[K]> | T[K]
 };
+export type ResolvedNode<T> = T extends ResolverParams
+  ? (T[2] extends ResolverMap
+    ? T[3] & Resolved<T[2]> 
+    : T[3])
+  : Resolved<T>;
+export type Resolved<T extends ResolverMap> = {
+  [K in keyof T]?: ResolvedNode<T[K]>
+}
+
+export const Resolver = <T = any, M = ResolverMap>(
+  search_key: string,
+  source: Map<string, T>,
+  map?: M,
+): ResolverParams<T, M> => [
+  search_key,
+  source,
+  map,
+  {} as T,
+];
+
+export const ArrayResolver = <T = any, M = ResolverMap>(
+  search_key: string,
+  source: Map<string, T>,
+  map?: M,
+): ArrayResolverParams<T, M> => [
+  search_key,
+  source,
+  [map],
+  {} as T[],
+];
+
 export const DEFAULT_STATUS_CALLBACK: OnMissingCallback = (id?: string, entity?: string): Status => ({
   id,
   code: 404,
@@ -42,7 +75,7 @@ export type CRUDServiceDefinition = CompatServiceDefinition & {
   };
 };
 
-export class ResponseMap<T extends ResourceResponse> extends Map<string, T> {
+export class ResourceMap<T extends Resource = any> extends Map<string, T> {
   protected _all?: T[];
 
   public get all() {
@@ -55,7 +88,7 @@ export class ResponseMap<T extends ResourceResponse> extends Map<string, T> {
     public readonly entity = items[0]?.constructor?.name,
   ) {
     super(items?.map(
-      item => [item?.payload?.id ?? item.status?.id, item]
+      item => [item?.id, item]
     ));
   }
 
@@ -158,7 +191,7 @@ export class ResourceAggregator {
     protected readonly register = new ClientRegister(cfg, logger),
   ) {}
 
-  public async getByIds<R extends ResourceResponse>(
+  public async getByIds<R extends Resource>(
     ids: string | string[],
     service: CRUDServiceDefinition,
     subject?: Subject,
@@ -181,7 +214,12 @@ export class ResourceAggregator {
     };
     const client = this.register.get(service) as any;
     const response = await client.read(request, context);
-    return new ResponseMap<R>(response?.items, service?.name?.toString());
+    return new ResourceMap<R>(
+      response?.items?.map(
+        (item: any) => item.payload
+      ),
+      service?.name?.toString()
+    );
   }
 
   public async aggregate<T extends ResourceListResponse | ResourceList, C = any>(
@@ -213,7 +251,7 @@ export class ResourceAggregator {
       target,
       template,
       ...sources.map((source, i) => ({
-        [source.container]: new ResponseMap(
+        [source.container]: new ResourceMap(
           source_map[i].getMany(
             ids[i].flatMap(ids => ids),
             strict
@@ -225,23 +263,36 @@ export class ResourceAggregator {
   }
 }
 
-export const resolve = <T extends object>(
+export const resolve = <T extends object, M extends ResolverMap>(
   entity: T,
-  resolveMap?: ResolveMap,
-): any => Object.assign(
+  resolverMap?: M,
+): T & Resolved<M> => entity && Object.assign(
   entity,
-  ...Object.entries(entity).filter(
-    ([key]) => resolveMap && key in resolveMap
-  ).flatMap(
-    ([key, value]) => {
-      const r = resolveMap[key];
-      return (Array.isArray(value) ? value : [value]).map(
-        value => ({
-          [r[0]]: resolve(
-            r[1].get(value.toString()), r[2] ?? resolveMap,
-          )
-        })
-      );
-    }
-  )
+  ...Object.entries(entity).map(
+    ([key, value]) => Object.entries(resolverMap ?? {}).map(
+      ([k, r]) => {
+        if (r[0] === key) {
+          if (Array.isArray(value)) {
+            return {
+              [key]: value.map(
+                id => r[2] ? resolve(
+                  r[1].get(id.toString()), r[2],
+                ) : r[1].get(id.toString())
+              )
+            };
+          }
+          else {
+            return {
+              [key]: r[2] ? resolve(
+                r[1].get(value.toString()), r[2],
+              ) : r[1].get(value.toString())
+            }
+          }
+        }
+        else {
+          return resolve((entity as any)[k], r);
+        }
+      }
+    )
+  ).filter(e => !!e)
 );

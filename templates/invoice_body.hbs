@@ -7,10 +7,12 @@
     <td><b>{{t 'l10n.invoice.invoiceNumber'}}</b></td>
     <td class="vclAlignRight">{{invoice.invoice_number}}</td>
   </tr>
+  {{#each invoice.references}}
   <tr>
     <td>{{t 'l10n.invoice.orderNumber'}}</td>
-    <td class="vclAlignRight">{{invoice.references[0].id}}</td>
+    <td class="vclAlignRight">{{id}}</td>
   </tr>
+  {{/each}}
   <tr>
     <td>{{t 'l10n.invoice.timestamp'}}</td>
     <td class="vclAlignRight">{{df invoice.timestamp}}</td>

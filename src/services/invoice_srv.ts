@@ -73,15 +73,15 @@ import {
   ShopServiceDefinition,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/shop.js';
 import {
-  CustomerResponse,
+  Customer,
   CustomerServiceDefinition,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/customer.js';
 import {
-  OrganizationResponse,
+  Organization,
   OrganizationServiceDefinition,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/organization.js';
 import {
-  UserResponse,
+  User,
   UserServiceDefinition,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/user.js';
 import {
@@ -90,25 +90,23 @@ import {
   PhysicalProduct,
   PhysicalVariant,
   Product,
-  ProductResponse,
   ProductServiceDefinition,
   ServiceProduct,
   ServiceVariant,
   VirtualProduct,
-  VirtualVariant
+  VirtualVariant,
+  DeepPartial,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/product.js';
 import {
-  ManufacturerResponse,
+  Manufacturer,
   ManufacturerServiceDefinition,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/manufacturer.js';
 import {
   Tax,
-  TaxResponse,
   TaxServiceDefinition,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/tax.js';
 import {
   FulfillmentProduct,
-  FulfillmentProductResponse,
   FulfillmentProductServiceDefinition,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/fulfillment_product.js';
 import {
@@ -118,7 +116,7 @@ import {
 import {
   type Aggregation,
   ResourceAggregator,
-  ResponseMap,
+  ResourceMap,
 } from '../experimental/ResourceAggregator.js';
 import { Readable, Transform } from 'node:stream';
 import { InvoiceNumberService } from './invoice_number_srv.js';
@@ -131,14 +129,14 @@ export type AggregatedPosition = Position & {
 };
 
 export type AggregationTemplate = {
-  shops?: ResponseMap<ShopResponse>;
-  customers?: ResponseMap<CustomerResponse>;
-  organization?: ResponseMap<OrganizationResponse>;
-  users?: ResponseMap<UserResponse>;
-  products?: ResponseMap<ProductResponse>;
-  taxes?: ResponseMap<TaxResponse>;
-  manufacturers?: ResponseMap<ManufacturerResponse>;
-  fulfillments_products?: ResponseMap<FulfillmentProductResponse>;
+  shops?: ResourceMap<Shop>;
+  customers?: ResourceMap<Customer>;
+  organization?: ResourceMap<Organization>;
+  users?: ResourceMap<User>;
+  products?: ResourceMap<Product>;
+  taxes?: ResourceMap<Tax>;
+  manufacturers?: ResourceMap<Manufacturer>;
+  fulfillments_products?: ResourceMap<FulfillmentProduct>;
 };
 
 export type AggregatedInvoice = Aggregation<InvoiceList, AggregationTemplate>;
@@ -450,13 +448,13 @@ export class InvoiceService
     request: RequestInvoiceNumber,
     context?: CallContext,
   ): Promise<InvoiceNumberResponse> {
-    const shop = await this.aggregator.getByIds<ShopResponse>(
+    const shop = await this.aggregator.getByIds<Shop>(
       request.shop_id!,
       ShopServiceDefinition,
       request.subject,
       context,
     ).then(
-      resp => resp.get(request.shop_id)?.payload
+      resp => resp.get(request.shop_id)
     );
 
     const key = `invoiceCounter:${shop.id}`;
@@ -586,7 +584,7 @@ export class InvoiceService
           {
             service: UserServiceDefinition,
             map_by_ids: (invoice_list) => invoice_list.customers!.map(
-              customer => customer.payload.private?.user_id
+              customer => customer.private?.user_id
             ).filter(i => i),
             container: 'users',
           },
@@ -594,10 +592,10 @@ export class InvoiceService
             service: OrganizationServiceDefinition,
             map_by_ids: (invoice_list) => [
               ...invoice_list.customers!.map(
-                customer => customer.payload.public_sector?.organization_id
+                customer => customer.public_sector?.organization_id
               ),
               ...invoice_list.customers!.map(
-                customer => customer.payload.commercial?.organization_id
+                customer => customer.commercial?.organization_id
               ),
             ].filter(i => i),
             container: 'organizations',
@@ -605,7 +603,7 @@ export class InvoiceService
           {
             service: ManufacturerServiceDefinition,
             map_by_ids: (invoice_list) => invoice_list.products?.map(
-              product => product.payload!.product?.manufacturer_id
+              product => product!.product?.manufacturer_id
             ).filter(i => i),
             container: 'manufacturers'
           },
@@ -613,14 +611,14 @@ export class InvoiceService
             service: TaxServiceDefinition,
             map_by_ids: (invoice_list) => invoice_list.products?.flatMap(
               product => [
-                ...product.payload!.product?.tax_ids,
-                ...product.payload!.product?.physical?.variants?.flatMap(
+                ...product!.product?.tax_ids,
+                ...product!.product?.physical?.variants?.flatMap(
                   variant => variant.tax_ids
                 ),
-                ...product.payload!.product?.virtual?.variants?.flatMap(
+                ...product!.product?.virtual?.variants?.flatMap(
                   variant => variant.tax_ids
                 ),
-                ...product.payload!.product?.service?.variants?.flatMap(
+                ...product!.product?.service?.variants?.flatMap(
                   variant => variant.tax_ids
                 ),
               ]
@@ -635,6 +633,56 @@ export class InvoiceService
     );
     return aggregation;
   }
+
+  private mergeProductVariantRecursive(
+    nature: ProductNature,
+    variant_id: string,
+  ): ProductVariant {
+    const variant = nature?.variants?.find(v => v.id === variant_id);
+    if (variant?.parent_variant_id) {
+      const template = this.mergeProductVariantRecursive(
+        nature, variant.parent_variant_id
+      );
+      return {
+        ...template,
+        ...variant,
+      };
+    }
+    else {
+      return variant;
+    }
+  };
+  
+  private mergeProductVariant(
+    product: IndividualProduct,
+    variant_id: string,
+  ): ProductVariant {
+    const nature = product.physical ?? product.virtual ?? product.service;
+    const variant = this.mergeProductVariantRecursive(nature, variant_id);
+  
+    return {
+      ...product,
+      ...variant,
+    };
+  };
+  
+  private aggregatePosition(
+    aggregation: AggregatedInvoice,
+    position: Position,
+  ): AggregatedPosition {
+    const product = position.product_item && aggregation.products.get(
+      position.product_item.product_id
+    );
+    const variant = product.product && this.mergeProductVariant(
+      product.product,
+      position.product_item.variant_id
+    );
+  
+    return {
+      ...position,
+      product: variant && product.bundle
+    };
+  };
 
   @access_controlled_function({
     action: AuthZAction.READ,
@@ -730,7 +778,7 @@ export class InvoiceService
           payloads: [
             {
               content_type: 'text/html',
-              data: this.resolveData(aggregation, item.payload),
+              data: this.resolveData(aggregation, item),
             }
           ],
         } as RenderRequest
@@ -1056,13 +1104,13 @@ export class InvoiceService
       response => response.items.shift().payload
     );
 
-    const setting = await this.aggregator.getByIds<ShopResponse>(
+    const setting = await this.aggregator.getByIds<Shop>(
       invoice.shop_id,
       ShopServiceDefinition,
       subject,
       context,
     ).then(
-      m => this.extractShopSetting(m.get(invoice.shop_id)!.payload)
+      m => this.extractShopSetting(m.get(invoice.shop_id))
     );
 
     const bodies = response.responses.map(
