@@ -2,7 +2,7 @@
   "logger": {
     "console": {
       "handleExceptions": false,
-      "level": "silly",
+      "level": "error",
       "colorize": true,
       "prettyPrint": true
     }
@@ -57,6 +57,19 @@
         "protoPath": "io/restorecommerce/product.proto",
         "packageName": "io.restorecommerce.product",
         "serviceName": "ProductService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
+    "manufacturer": {
+      "address": "localhost:50167",
+      "mock": {
+        "protoPath": "io/restorecommerce/manufacturer.proto",
+        "packageName": "io.restorecommerce.manufacturer",
+        "serviceName": "ManufacturerService",
         "protoLoadOptions": {
           "includeDirs": [
             "node_modules/@restorecommerce/protos/"
@@ -142,6 +155,19 @@
         }
       }
     },
+    "contact_point": {
+      "address": "localhost:50175",
+      "mock": {
+        "protoPath": "io/restorecommerce/contact_point.proto",
+        "packageName": "io.restorecommerce.contact_point",
+        "serviceName": "ContactPointService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
     "fulfillment_product": {
       "disabled": false,
       "address": "localhost:50176",
@@ -154,6 +180,16 @@
             "node_modules/@restorecommerce/protos/"
           ]
         }
+      }
+    }
+  },
+  "defaults": {
+    "Shop": {
+      "settings": {
+        "ostorage_domain_prefix": "http://localhost:5000/storage",
+        "default_bucket": "invoices",
+        "disable_invoice_html_storage": "false",
+        "bucket_key_delimiter": "/"
       }
     }
   }

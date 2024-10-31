@@ -2,7 +2,7 @@
   "logger": {
     "console": {
       "handleExceptions": false,
-      "level": "silly",
+      "level": "error",
       "colorize": true,
       "prettyPrint": true
     }
@@ -17,10 +17,12 @@
       "retries": 6,
       "delay": 30000,
       "collections": [
-        "invoices"
+        "invoices",
+        "invoice_numbers"
       ],
       "entities": [
-        "invoice"
+        "invoice",
+        "invoice_number"
       ],
       "customQueries": [
         {
@@ -87,10 +89,31 @@
       "fullName": "io.restorecommerce.organization.OrganizationService",
       "address": "localhost:50053"
     },
-    "fulfillment_product": {
-      "fullName": "io.restorecommerce.fulfillment_product.FulfillmentProduct",
+    "contact_point": {
+      "fullName": "io.restorecommerce.contact_point.ContactPointService",
+      "address": "localhost:50053"
+    },
+    "fulfillment_courier": {
+      "fullName": "io.restorecommerce.fulfillment_courierFulfillmentCourierService",
       "address": "localhost:50067",
       "disabled": false
+    },
+    "fulfillment_product": {
+      "fullName": "io.restorecommerce.fulfillment_product.FulfillmentProductService",
+      "address": "localhost:50067",
+      "disabled": false
+    },
+    "ostorage": {
+      "fullName": "io.restorecommerce.ostorage.OstorageService",
+      "address": "localhost:50066"
+    },
+    "pdf_rendering": {
+      "fullName": "io.restorecommerce.pdf_rendering.PdfRenderingService",
+      "address": "localhost:3001"
+    },
+    "notification_req": {
+      "fullName": "io.restorecommerce.notification_req.NotificationReqService",
+      "address": "localhost:50052"
     }
   },
   "fieldHandlers": {
@@ -148,6 +171,10 @@
       "db-index": 5,
       "ttl": 3600,
       "prefix": "acs:"
+    },
+    "techUser": {
+      "id": "root_tech_user",
+      "token": "1a4c6789-6435-487a-9308-64d06384acf9"
     }
   },
   "events": {
@@ -155,7 +182,7 @@
     "emitters": {
       "INVALID": "invoiceInvalid",
       "PENDING": "invoicePending",
-      "RENDERED": "invoideRendered",
+      "RENDERED": "invoiceRendered",
       "SENT": "invoiceSent",
       "WITHDRAWN": "invoiceWithdrawn",
       "CANCELLED": "invoiceCancelled"
@@ -177,7 +204,7 @@
         "messageObject": "io.restorecommerce.invoice.Invoice"
       },
       "invoiceDeleted": {
-        "messageObject": "io.restorecommerce.resourcebase.DeleteRequest"
+        "messageObject": "io.restorecommerce.invoice.Deleted"
       },
       "invoiceFailed": {
         "messageObject": "io.restorecommerce.invoice.InvoiceResponse"
@@ -243,7 +270,15 @@
       "flushCacheResponse": {
         "messageObject": "io.restorecommerce.commandinterface.CommandResponse"
       },
-      
+      "renderRequest": {
+        "messageObject": "io.restorecommerce.rendering.RenderRequest"
+      },
+      "renderResponse": {
+        "messageObject": "io.restorecommerce.rendering.RenderResponse"
+      },
+      "sendEmail": {
+        "messageObject": "io.restorecommerce.notification_req.NotificationReq"
+      },
       "queuedJob": {
         "messageObject": "io.restorecommerce.job.ScheduledJob"
       },
@@ -348,7 +383,14 @@
       "message": "Query limit 1000 for {entity} exhausted!"
     }
   },
-  "defaultShopConfig": {
-
+  "defaults": {
+    "Shop": {
+      "settings": {
+        "ostorage_domain_prefix": "localhost:5000/storage",
+        "default_bucket": "invoices",
+        "disable_invoice_html_storage": "false",
+        "bucket_key_delimiter": "/"
+      }
+    }
   }
 }

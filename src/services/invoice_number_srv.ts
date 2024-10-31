@@ -9,12 +9,17 @@ import { Topic } from '@restorecommerce/kafka-client';
 import { OperationStatus, Status } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/status.js';
 import { Subject } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/auth.js';
 import { Meta } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/meta.js';
+import {
+  access_controlled_service,
+  injects_meta_data,
+  resolves_subject,
+} from '@restorecommerce/acs-client';
 
 export interface InvoiceNumber {
   id?: string;
   meta?: Meta;
   shop_id?: string;
-  counter?: number; 
+  counter?: number;
   invoice_number?: string;
 };
 
@@ -36,6 +41,7 @@ export interface InvoiceNumberListResponse {
 };
 
 
+@access_controlled_service
 export class InvoiceNumberService
   extends ServiceBase<InvoiceNumberListResponse, InvoiceNumberList>
 {
@@ -47,14 +53,44 @@ export class InvoiceNumberService
   ) {
     super(
       cfg.get('database:main:entities:1') ?? 'invoice_number',
-      topic,
+      undefined, // topic,
       logger,
       new ResourcesAPIBase(
         db,
         cfg.get('database:main:collections:1') ?? 'invoice_numbers',
         cfg.get('fieldHandlers'),
+        undefined,
+        undefined,
+        logger,
       ),
-      !!cfg.get('events:enableEvents'),
+      false,
     );
+  }
+
+  @resolves_subject()
+  @injects_meta_data()
+  public override async create(
+    request: InvoiceNumberList,
+    context: any
+  ): Promise<InvoiceNumberListResponse> {
+    return super.create(request, context);
+  }
+
+  @resolves_subject()
+  @injects_meta_data()
+  public override async update(
+    request: InvoiceNumberList,
+    context: any
+  ): Promise<InvoiceNumberListResponse> {
+    return super.update(request, context);
+  }
+
+  @resolves_subject()
+  @injects_meta_data()
+  public override async upsert(
+    request: InvoiceNumberList,
+    context: any
+  ): Promise<InvoiceNumberListResponse> {
+    return super.upsert(request, context);
   }
 }

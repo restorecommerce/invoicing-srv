@@ -1,7 +1,7 @@
 import { type Provider } from 'nconf';
-import type { ServiceImplementation } from 'nice-grpc';
-import type { CompatServiceDefinition } from 'nice-grpc/lib/service-definitions';
-import { RedisClientType as RedisClient, createClient } from 'redis';
+import { type ServiceImplementation } from 'nice-grpc';
+import { type CompatServiceDefinition } from 'nice-grpc/lib/service-definitions';
+import { type RedisClientType, createClient } from 'redis';
 import {
   Server,
   OffsetStore,
@@ -172,7 +172,7 @@ export abstract class WorkerBase {
 
     const redisConfig = this.cfg.get('redis');
     redisConfig.db = this.cfg.get('redis:db-indexes:db-subject');
-    const redisClient: RedisClient = createClient(redisConfig);
+    const redisClient: RedisClientType = createClient(redisConfig);
     await redisClient.connect();
 
     this.commandInterface = new CommandInterface(

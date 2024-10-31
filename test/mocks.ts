@@ -11,6 +11,10 @@ import {
   ProductResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/product.js';
 import {
+  ManufacturerListResponse,
+  ManufacturerResponse,
+} from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/manufacturer.js';
+import {
   OrganizationListResponse,
   OrganizationResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/organization.js';
@@ -35,13 +39,10 @@ import {
   TaxTypeListResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/tax_type.js';
 import {
-  PackingSolutionListResponse
-} from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/fulfillment_product.js';
-import {
   UserListResponse,
   UserResponse,
   UserType
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/user.js';
+} from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/user.js';
 import {
   ShopListResponse,
   ShopResponse
@@ -50,16 +51,8 @@ import {
   CustomerListResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/customer.js';
 import {
-  FulfillmentListResponse,
-  FulfillmentResponse,
-} from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/fulfillment.js';
-import {
   OperationStatus
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/status.js';
-import {
-  InvoiceListResponse,
-  PaymentState
-} from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/invoice.js';
 import {
   Effect
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/rule.js';
@@ -70,10 +63,15 @@ import {
   HierarchicalScope
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/auth.js';
 import {
+  FulfillmentCourierListResponse
+} from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/fulfillment_courier.js';
+import {
+  FulfillmentProductListResponse
+} from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/fulfillment_product.js';
+import {
   getRedisInstance,
   logger
 } from './utils.js';
-import { FulfillmentProductListResponse } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/fulfillment_product.js';
 
 type Address = ShippingAddress & BillingAddress;
 
@@ -98,6 +96,10 @@ const mainMeta = {
 };
 
 const subjects: { [key: string]: Subject } = {
+  root_tech_user: {
+    id: 'root_tech_user',
+    token: '1a4c6789-6435-487a-9308-64d06384acf9',
+  },
   superadmin: {
     id: 'superadmin',
     scope: 'main',
@@ -180,7 +182,22 @@ const taxes: TaxResponse[] = [
       message: 'OK'
     }
   }
-]
+];
+
+const manufacturers: ManufacturerResponse[] = [
+  {
+    payload: {
+      id: 'manufacturer_1',
+      name: 'Manufacturer1',
+      description: 'A manufacturer for testing',
+    },
+    status: {
+      id: 'manufacturer_1',
+      code: 200,
+      message: 'OK',
+    }
+  }
+];
 
 const products: ProductResponse[] = [
   {
@@ -193,9 +210,9 @@ const products: ProductResponse[] = [
       product: {
         name: 'Physical Product 1',
         description: 'This is a physical product',
-        manufacturerId: 'manufacturer_1',
+        manufacturerId: manufacturers[0].payload!.id,
         taxIds: [
-          taxes[0].payload?.id as string,
+          taxes[0].payload!.id!,
         ],
         physical: {
           variants: [
@@ -267,7 +284,7 @@ const products: ProductResponse[] = [
   },
 ];
 
-const contactPoints = [
+const contactPoints: ContactPointResponse[] = [
   {
     payload: {
       id: 'contactPoint_1',
@@ -289,7 +306,7 @@ const contactPoints = [
       message: 'OK',
     }
   }
-] as ContactPointResponse[];
+];
 
 const organizations = [
   {
@@ -331,11 +348,21 @@ const validInvoices: { [key: string]: InvoiceList } = {
     items: [
       {
         id: 'validInvoice_1',
-        userId: 'userId_1',
-        customerId: 'customerId_1',
-        shopId: 'invalid_shop_1',
+        userId: 'user_1',
+        customerId: 'customer_1',
+        shopId: shops[0].payload!.id,
         sender: businessAddresses[0],
         recipient: residentialAddresses[0],
+        references: [
+          {
+            instanceType: 'urn:restorecommerce:acs:model:order.Order',
+            instanceId: 'valideOrder_1',
+          },
+          {
+            instanceType: 'urn:restorecommerce:acs:model:fulfillment.Fulfillment',
+            instanceId: 'valideFulfillment_1',
+          },
+        ],
         documents: [],
         sections: [
           {
@@ -372,33 +399,33 @@ const validInvoices: { [key: string]: InvoiceList } = {
 const users: { [key: string]: UserResponse } = {
   superadmin: {
     payload: {
-      id: 'superadmin',
+      id: 'root_tech_user',
       name: 'manuel.mustersuperadmin',
-      first_name: 'Manuel',
-      last_name: 'Mustersuperadmin',
+      firstName: 'Manuel',
+      lastName: 'Mustersuperadmin',
       email: 'manuel.mustersuperadmin@restorecommerce.io',
       password: 'A$1rcadminpw',
-      default_scope: 'r-ug',
-      role_associations: [
+      defaultScope: 'r-ug',
+      roleAssociations: [
         {
           id: 'superadmin-1-administrator-r-id',
           role: 'superadministrator-r-id',
           attributes: [],
         },
       ],
-      locale_id: 'de-de',
-      timezone_id: 'europe-berlin',
+      localeId: 'de-de',
+      timezoneId: 'europe-berlin',
       active: true,
-      user_type: UserType.ORG_USER,
+      userType: UserType.ORG_USER,
       tokens: [
         {
-          token: 'superadmin',
+          token: 'root_tech_user',
         }
       ],
       meta: mainMeta,
     },
     status: {
-      id: 'superadmin',
+      id: 'root_tech_user',
       code: 200,
       message: 'OK',
     }
@@ -407,12 +434,12 @@ const users: { [key: string]: UserResponse } = {
     payload: {
       id: 'admin',
       name: 'manuel.musteradmin',
-      first_name: 'Manuel',
-      last_name: 'Musteradmin',
+      firstName: 'Manuel',
+      lastName: 'Musteradmin',
       email: 'manuel.musteradmin@restorecommerce.io',
       password: 'A$1rcadminpw',
-      default_scope: 'sub',
-      role_associations: [
+      defaultScope: 'sub',
+      roleAssociations: [
         {
           id: 'admin-1-administrator-r-id',
           role: 'administrator-r-id',
@@ -430,10 +457,10 @@ const users: { [key: string]: UserResponse } = {
           ],
         },
       ],
-      locale_id: 'de-de',
-      timezone_id: 'europe-berlin',
+      localeId: 'de-de',
+      timezoneId: 'europe-berlin',
       active: true,
-      user_type: UserType.ORG_USER,
+      userType: UserType.ORG_USER,
       tokens: [
         {
           token: 'admin',
@@ -443,6 +470,50 @@ const users: { [key: string]: UserResponse } = {
     },
     status: {
       id: 'admin',
+      code: 200,
+      message: 'OK',
+    }
+  },
+  user_1: {
+    payload: {
+      id: 'user_1',
+      name: 'manuel.musteruser',
+      firstName: 'Manuel',
+      lastName: 'Musteruser',
+      email: 'manuel.musteruser@restorecommerce.io',
+      password: 'A$1rcadminpw',
+      defaultScope: 'sub',
+      roleAssociations: [
+        {
+          id: 'user-1-user-r-id',
+          role: 'user-r-id',
+          attributes: [
+            {
+              id: 'urn:restorecommerce:acs:names:roleScopingEntity',
+              value: 'urn:restorecommerce:acs:model:organization.Organization',
+              attributes: [
+                {
+                  id: 'urn:restorecommerce:acs:names:roleScopingInstance',
+                  value: 'sub',
+                }
+              ],
+            }
+          ],
+        },
+      ],
+      localeId: 'de-de',
+      timezoneId: 'europe-berlin',
+      active: true,
+      userType: UserType.ORG_USER,
+      tokens: [
+        {
+          token: 'user_1',
+        }
+      ],
+      meta: mainMeta,
+    },
+    status: {
+      id: 'user_1',
       code: 200,
       message: 'OK',
     }
@@ -465,6 +536,12 @@ const hierarchicalScopes: { [key: string]: HierarchicalScope[] } = {
     {
       id: 'sub',
       role: 'administrator-r-id',
+    }
+  ],
+  user_1: [
+    {
+      id: 'sub',
+      role: 'user-r-id',
     }
   ]
 };
@@ -536,8 +613,365 @@ const whatIsAllowed: ReverseQuery = {
   operationStatus,
 };
 
-export const fulfillmentProducts: FulfillmentProductListResponse = {
+const fulfillmentCouriers: FulfillmentCourierListResponse = {
+  items: [
+    {
+      payload: {
+        id: 'dhl_1',
+        name: 'DHL',
+        description: '',
+        logo: 'DHL.png',
+        website: 'https://www.dhl.com/',
+        stubType: 'DHLSoap',
+        shopIds: [
+          'shop_1'
+        ],
+        meta: {
+          created: new Date(),
+          modified: new Date(),
+          modifiedBy: 'SYSTEM',
+          acls: [],
+          owners: [
+            {
+              id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
+              value: 'urn:restorecommerce:acs:model:user.User',
+              attributes: []
+            },
+            {
+              id: 'urn:restorecommerce:acs:names:ownerInstance',
+              value: 'UserID',
+              attributes: []
+            }
+          ]
+        }
+      },
+      status: {
+        code: 200,
+        message: 'Mocked!'
+      }
+    },
+    {
+      payload: {
+        id: 'dhl_2',
+        name: 'DHL',
+        description: '',
+        logo: 'DHL.png',
+        website: 'https://www.dhl.com/',
+        stubType: 'DHLSoap',
+        shopIds: [
+          'shop_1'
+        ],
+        meta: {
+          created: new Date(),
+          modified: new Date(),
+          modifiedBy: 'SYSTEM',
+          acls: [],
+          owners: [
+            {
+              id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
+              value: 'urn:restorecommerce:acs:model:user.User',
+              attributes: []
+            },
+            {
+              id: 'urn:restorecommerce:acs:names:ownerInstance',
+              value: 'UserID',
+              attributes: []
+            }
+          ]
+        }
+      },
+      status: {
+        code: 200,
+        message: 'Mocked!'
+      }
+    }
+  ],
+  totalCount: 2,
+  operationStatus: {
+    code: 200,
+    message: 'Mocked!',
+  }
+};
 
+export const fulfillmentProducts: FulfillmentProductListResponse = {
+  items: [
+    {
+      payload: {
+        id: 'dhl-1-national',
+        name: 'DHL National (Germany)',
+        description: 'Versendungen innerhalb Deutschland',
+        courierId: fulfillmentCouriers.items![0].payload!.id,
+        startZones: ['DE'],
+        destinationZones: ['DE'],
+        taxIds: [taxes[0].payload?.id as string],
+        attributes: [{
+          id: 'urn:restorecommerce:fulfillment:product:attribute:dhl:productName',
+          value: 'V01PAK',
+          attributes: [],
+        },{
+          id: 'urn:restorecommerce:fulfillment:product:attribute:dhl:accountNumber',
+          value: '33333333330102',
+          attributes: [],
+        }],
+        variants: [{
+          id: 'dhl-1-national-s',
+          name: 'Parcel S up to 2kg',
+          description: 'For small parcels up to 2kg',
+          price: {
+            currencyId: 'euro',
+            regularPrice: 3.79,
+            salePrice: 3.79,
+            sale: false,
+          },
+          maxSize: {
+            height: 35,
+            width: 25,
+            length: 10,
+          },
+          maxWeight: 2000,
+        },{
+          id: 'dhl-1-national-m',
+          name: 'Parcel M up to 2kg',
+          description: 'For medium sized parcels up to 2kg',
+          price: {
+            currencyId: 'euro',
+            regularPrice: 4.49,
+            salePrice: 4.49,
+            sale: false,
+          },
+          maxSize: {
+            height: 60,
+            width: 30,
+            length: 15,
+          },
+          maxWeight: 2000,
+        }],
+        meta: {
+          created: new Date(),
+          modified: new Date(),
+          modifiedBy: 'SYSTEM',
+          acls: [],
+          owners: [{
+            id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
+            value: 'urn:restorecommerce:acs:model:user.User',
+            attributes: [],
+          },
+          {
+            id: 'urn:restorecommerce:acs:names:ownerInstance',
+            value: 'UserID',
+            attributes: [],
+          }]
+        }
+      },
+      status: {
+        code: 200,
+        message: 'Mocked!'
+      }
+    },{
+      payload: {
+        id: 'dhl-1-europe',
+        name: 'DHL Europe',
+        description: 'Versendungen innerhalb Europas',
+        courierId: fulfillmentCouriers.items![0].payload!.id,
+        taxIds: [taxes[0].payload?.id as string],
+        startZones: ['DE'],
+        destinationZones: ['DE'],
+        attributes: [{
+          id: 'urn:restorecommerce:fulfillment:product:attribute:dhl:productName',
+          value: 'V01PAK',
+          attributes: [],
+        },{
+          id: 'urn:restorecommerce:fulfillment:product:attribute:dhl:accountNumber',
+          value: '33333333330102',
+          attributes: [],
+        }],
+        variants: [{
+          id: 'dhl-1-europe-s',
+          name: 'Parcel S up to 2kg',
+          description: 'For small sized parcels up to 2kg',
+          price: {
+            currencyId: 'euro',
+            regularPrice: 3.79,
+            salePrice: 3.79,
+            sale: false,
+          },
+          maxSize: {
+            height: 35,
+            width: 25,
+            length: 10,
+          },
+          maxWeight: 2000,
+        },{
+          id: 'dhl-1-europe-m',
+          name: 'Parcel M up to 2kg',
+          description: 'For medium sized parcels up to 2kg',
+          price: {
+            currencyId: 'euro',
+            regularPrice: 4.49,
+            salePrice: 4.49,
+            sale: false,
+          },
+          maxSize: {
+            height: 60,
+            width: 30,
+            length: 15,
+          },
+          maxWeight: 2000,
+        }],
+        meta: {
+          created: new Date(),
+          modified: new Date(),
+          modifiedBy: 'SYSTEM',
+          acls: [],
+          owners: [{
+            id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
+            value: 'urn:restorecommerce:acs:model:user.User',
+            attributes: [],
+          },
+          {
+            id: 'urn:restorecommerce:acs:names:ownerInstance',
+            value: 'UserID',
+            attributes: [],
+          }]
+        }
+      }
+    },{
+      payload: {
+        id: 'dhl-2-national',
+        name: 'DHL National (Germany)',
+        description: 'Versendungen innerhalb Deutschland',
+        courierId: fulfillmentCouriers.items![1].payload!.id,
+        startZones: ['DE'],
+        destinationZones: ['DE'],
+        taxIds: [taxes[0].payload?.id as string],
+        attributes: [{
+          id: 'urn:restorecommerce:fulfillment:product:attribute:dhl:productName',
+          value: 'V01PAK',
+          attributes: [],
+        },{
+          id: 'urn:restorecommerce:fulfillment:product:attribute:dhl:accountNumber',
+          value: '33333333330102',
+          attributes: [],
+        }],
+        variants: [{
+          id: 'dhl-2-national-s',
+          name: 'Parcel S up to 2kg',
+          description: 'For small parcels up to 2kg',
+          price: {
+            currencyId: 'euro',
+            regularPrice: 4.79,
+            salePrice: 4.79,
+            sale: false,
+          },
+          maxSize: {
+            height: 35,
+            width: 25,
+            length: 10,
+          },
+          maxWeight: 2000,
+        },{
+          id: 'dhl-2-national-m',
+          name: 'Parcel M up to 2kg',
+          description: 'For medium sized parcels up to 2kg',
+          price: {
+            currencyId: 'euro',
+            regularPrice: 5.49,
+            salePrice: 5.49,
+            sale: false,
+          },
+          maxSize: {
+            height: 60,
+            width: 30,
+            length: 15,
+          },
+          maxWeight: 2000,
+        }],
+        meta: {
+          created: new Date(),
+          modified: new Date(),
+          modifiedBy: 'SYSTEM',
+          acls: [],
+          owners: [{
+            id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
+            value: 'urn:restorecommerce:acs:model:user.User',
+          },
+          {
+            id: 'urn:restorecommerce:acs:names:ownerInstance',
+            value: 'UserID',
+          }]
+        }
+      }
+    },{
+      payload: {
+        id: 'dhl-2-europe',
+        name: 'DHL Europe',
+        description: 'Versendungen innerhalb Europas',
+        courierId: fulfillmentCouriers.items![1].payload!.id,
+        startZones: ['DE', 'FR', 'IT', 'ES'],
+        destinationZones: ['DE', 'FR', 'IT', 'ES'],
+        taxIds: [taxes[0].payload?.id as string],
+        attributes: [{
+          id: 'urn:restorecommerce:fulfillment:product:attribute:dhl:productName',
+          value: 'V01PAK',
+        },{
+          id: 'urn:restorecommerce:fulfillment:product:attribute:dhl:accountNumber',
+          value: '33333333330102',
+        }],
+        variants: [{
+          id: 'dhl-2-europe-s',
+          name: 'Parcel S up to 2kg',
+          description: 'For small sized parcels up to 2kg',
+          price: {
+            currencyId: 'euro',
+            regularPrice: 4.79,
+            salePrice: 4.79,
+            sale: false,
+          },
+          maxSize: {
+            height: 35,
+            width: 25,
+            length: 10,
+          },
+          maxWeight: 2000,
+        },{
+          id: 'dhl-2-europe-m',
+          name: 'Parcel M up to 2kg',
+          description: 'For medium sized parcels up to 2kg',
+          price: {
+            currencyId: 'euro',
+            regularPrice: 8.49,
+            salePrice: 8.49,
+            sale: false,
+          },
+          maxSize: {
+            height: 60,
+            width: 30,
+            length: 15,
+          },
+          maxWeight: 2000,
+        }],
+        meta: {
+          created: new Date(),
+          modified: new Date(),
+          modifiedBy: 'SYSTEM',
+          acls: [],
+          owners: [{
+            id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
+            value: 'urn:restorecommerce:acs:model:user.User',
+          },
+          {
+            id: 'urn:restorecommerce:acs:names:ownerInstance',
+            value: 'UserID',
+          }]
+        }
+      }
+    }
+  ],
+  totalCount: 4,
+  operationStatus: {
+    code: 200,
+    message: 'Mocked!'
+  }
 }
 
 export const samples = {
@@ -565,7 +999,11 @@ export const rules: { [key: string]: any } = {
     read: (
       call: any,
       callback: (error: any, response: UserListResponse) => void,
-    ) => callback(null, {}),
+    ) => callback(null, {
+      items: Object.values(users),
+      totalCount: Object.values(users).length,
+      operationStatus
+    }),
     findByToken: (
       call: any,
       callback: (error: any, response: UserResponse) => void,
@@ -621,7 +1059,7 @@ export const rules: { [key: string]: any } = {
             private: {
               userId: 'user_1',
               contactPointIds: [
-                'cantactPoint_1'
+                'contactPoint_1'
               ],
             },
           },
@@ -686,13 +1124,23 @@ export const rules: { [key: string]: any } = {
       operationStatus,
     }),
   },
+  manufacturer: {
+    read: (
+      call: any,
+      callback: (error: any, response: ManufacturerListResponse) => void,
+    ) => callback(null, {
+      items: manufacturers,
+      totalCount: manufacturers.length,
+      operationStatus,
+    }),
+  },
   tax: {
     read: (
       call: any,
       callback: (error: any, response: TaxListResponse) => void,
     )=> callback(null, {
       items: taxes,
-      totalCount: 1,
+      totalCount: taxes.length,
       operationStatus
     }),
   },
@@ -719,10 +1167,16 @@ export const rules: { [key: string]: any } = {
       operationStatus
     }),
   },
+  fulfillment_courier: {
+    read: (
+      call: any,
+      callback: (error: any, response: FulfillmentCourierListResponse) => void,
+    ) => callback(null, fulfillmentCouriers),
+  },
   fulfillment_product: {
     read: (
       call: any,
-      callback: (error: any, response: FulfillmentListResponse) => void,
+      callback: (error: any, response: FulfillmentProductListResponse) => void,
     ) => callback(null, fulfillmentProducts),
   },
 };

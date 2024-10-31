@@ -133,7 +133,6 @@ describe('The Invoicing Service:', function() {
       `should render invoices using valid samples: ${sample_name}`,
       async function() {
         const response = await client.render(sample);
-        logger.debug(response);
         expect(
           response.operationStatus?.code
         ).toBe(200);
@@ -162,8 +161,6 @@ describe('The Invoicing Service:', function() {
             item => ({
               id: item.id,
               subject: sample.subject,
-              channelIds: [''],
-              options: undefined,
             })
           ),
           totalCount: sample.items?.length,
@@ -190,8 +187,6 @@ describe('The Invoicing Service:', function() {
             item => ({
               id: item.id,
               subject: sample.subject,
-              channelIds: [''],
-              options: undefined,
             })
           ),
           totalCount: sample.items?.length,

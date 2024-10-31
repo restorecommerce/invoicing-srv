@@ -1,53 +1,9 @@
+import * as _ from 'lodash-es';
 import {
   Invoice,
-  InvoiceServiceImplementation,
-  InvoiceListResponse,
   InvoiceList,
-  InvoiceIdList,
-  RequestInvoiceNumber,
-  InvoiceNumberResponse,
-  ManualItem,
   Position,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice.js';
-import {
-  OperationStatus,
-  StatusListResponse
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/status.js';
-import {
-  DeleteRequest,
-  DeleteResponse,
-  ReadRequest,
-  Sort_SortOrder
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/resource_base.js';
-import {
-  ACSClientContext,
-  AuthZAction,
-  DefaultACSClientContextFactory,
-  DefaultResourceFactory,
-  Operation,
-  access_controlled_function,
-  access_controlled_service,
-  injects_meta_data,
-} from '@restorecommerce/acs-client';
-import {
-  Subject
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/auth.js';
-import {
-  Payload_Strategy,
-  RenderRequest,
-  RenderResponse,
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/rendering.js';
-import {
-  PdfRenderingServiceDefinition,
-  RenderingResponse as PdfRenderResponse,
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/pdf_rendering.js';
-import {
-  NotificationReqServiceDefinition,
-  NotificationReq,
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/notification_req.js';
-import {
-  ObjectServiceDefinition,
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/ostorage.js';
 import {
   Shop,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/shop.js';
@@ -78,8 +34,6 @@ import {
   PhysicalProduct,
   PhysicalVariant,
   Product,
-  ProductResponse,
-  ProductServiceDefinition,
   ServiceProduct,
   ServiceVariant,
   VirtualProduct,
@@ -114,9 +68,40 @@ import {
   resolve,
   Resolver,
   ArrayResolver,
-  ResourceAggregator,
   ResourceMap,
 } from './experimental/ResourceAggregator.js';
+import { Any } from '@restorecommerce/rc-grpc-clients/dist/generated-server/google/protobuf/any.js';
+
+export const DefaultUrns = {
+  invoice_role: 'urn:invoice_role',
+  render_options: 'urn:render_options',
+  render_strategy: 'urn:render_strategy',
+  render_style: 'render_style',
+  render_template: 'render_template',
+  pdf_template_id: 'pdf_template_id',
+  pdf_template_url: 'pdf_template_url',
+  email_template_id: 'email_template_id',
+  email_template_url: 'email_template_url',
+  email_provider: 'email_provider',
+  email_in_cc: 'email_in_cc',
+  email_subject_template: 'email_subject_template',
+  default_bucket: 'default_bucket',
+  invoice_html_bucket: 'invoice_html_bucket',
+  invoice_html_bucket_options: 'invoice_html_bucket_options',
+  invoice_pdf_bucket: 'invoice_pdf_bucket',
+  invoice_pdf_bucket_options: 'invoice_pdf_bucket_options',
+  invoice_pdf_puppeteer_options: 'invoice_pdf_puppeteer_options',
+  enable_invoice_html_storage: 'enable_invoice_html_storage',
+  enable_invoice_pdf_storage: 'enable_invoice_pdf_storage',
+  invoice_number_start: 'invoice_number_start',
+  invoice_number_increment: 'invoice_number_increment',
+  invoice_number_pattern: 'invoice_number_pattern',
+  disable_invoice_html_storage: 'disable_invoice_html_storage',
+  disable_invoice_pdf_storage: 'disable_invoice_pdf_storage',
+  puppeteer_options: 'puppeteer_options',
+};
+
+export type KnownUrns = typeof DefaultUrns;
 
 export type ProductNature = PhysicalProduct | VirtualProduct | ServiceProduct;
 export type ProductVariant = PhysicalVariant | VirtualVariant | ServiceVariant;
@@ -148,44 +133,22 @@ export type AggregationTemplate = {
 export type AggregatedInvoiceList = Aggregation<InvoiceList, AggregationTemplate>;
 
 export type Setting = {
-  access_control_subject?: Subject;
   default_bucket?: string;
+  invoice_number_start?: number;
+  invoice_number_increment?: number;
   invoice_html_bucket?: string;
   invoice_pdf_bucket?: string;
   disable_invoice_html_storage?: string;
   disable_invoice_pdf_storage?: string;
   invoice_html_bucket_options?: any;
   invoice_pdf_bucket_options?: any;
+  invoice_number_pattern?: any;
   puppeteer_options?: any;
   email_provider?: string;
   email_subject_template?: string;
   email_in_cc?: string[];
-};
-
-export type KnownUrns = {
-  access_control_subject?: string;
-  render_options?: string;
-  render_strategy?: string;
-  render_style?: string;
-  render_template?: string;
-  pdf_template_id?: string;
-  pdf_template_url?: string;
-  email_template_id?: string;
-  email_template_url?: string;
-  email_provider?: string;
-  email_in_cc?: string;
-  email_subject_template?: string;
-  default_bucket?: string;
-  invoice_html_bucket?: string;
-  invoice_html_bucket_options?: string;
-  invoice_pdf_bucket?: string;
-  invoice_pdf_bucket_options?: string;
-  invoice_pdf_puppeteer_options?: string;
-  enable_invoice_html_storage?: string;
-  enable_invoice_pdf_storage?: string;
-  invoice_number_start?: string;
-  invoice_number_increment?: string;
-  invoice_number_pattern?: string;
+  bucket_key_delimiter?: string;
+  ostorage_domain_prefix?: string;
 };
 
 export type InvoiceNumber = {
@@ -195,46 +158,26 @@ export type InvoiceNumber = {
   invoice_number?: string;
 };
 
-const resolveShopConfig = (
-  aggregation: AggregatedInvoiceList,
-  shop_id: string,
-  urns: KnownUrns,
-) => {
-  const shop = aggregation.shops.get(shop_id);
-  const options = Object.assign({},
-    ...shop.settings.filter(
-      s => s.id === urns.render_options
-    ).map(
-      s => JSON.parse(s.value)
-    )
-  );
-  const templates = Buffer.from(
-    JSON.stringify(
-      Object.assign({},
-        ...shop.settings.filter(
-          s => s.id === urns.pdf_template_url
-        ).map(
-          (s, i) => ({ [i]: s.value })
-        )
-      )
-    )
-  );
-  const strategy = shop.settings.find(
-    s => s.id === urns.render_strategy
-  )?.value ?? Payload_Strategy.INLINE;
-  const style_url = shop.settings.find(
-    s => s.id ===urns.render_style
-  )?.value;
+const mergeProductVariantRecursive = (nature: ProductNature, variant_id: string): ProductVariant => {
+  const variant = nature?.variants?.find(v => v.id === variant_id);
+  if (variant?.parent_variant_id) {
+    const template = mergeProductVariantRecursive(
+      nature, variant.parent_variant_id
+    );
+    return _.merge(template, variant);
+  }
+  else {
+    return variant;
+  }
+};;
 
-  return {
-    options,
-    templates,
-    strategy,
-    style_url,
-  };
-};
+const mergeProductVariant = (product: IndividualProduct, variant_id: string): ProductVariant => {
+  const nature = product.physical ?? product.virtual ?? product.service;
+  const variant = mergeProductVariantRecursive(nature, variant_id);
+  return _.merge(product, variant);
+};;
 
-const resolveInvoice = (
+export const resolveInvoice = (
   aggregation: AggregatedInvoiceList,
   invoice: Invoice,
 ) => {
@@ -269,34 +212,39 @@ const resolveInvoice = (
     manufacturer: Resolver('manufacturer_id', aggregation.manufacturers),
     origin_country: Resolver('origin_country_id', aggregation.countries),
     prototype: Resolver('prototype_id', aggregation.prototypes),
-  }
-  const product_resolver = Resolver(
-    'product_id',
-    aggregation.products,
-    {
-      product: individual_product_resolver,
-      bundle: {
-        products: [{
-          product: Resolver(
-            'product_id',
-            aggregation.products,
-            individual_product_resolver
-          )
-        }]
+  };
+  const product_resolver = {
+    product: Resolver(
+      'product_id',
+      aggregation.products,
+      {
+        product: individual_product_resolver,
+        bundle: {
+          products: {
+            product: Resolver(
+              'product_id',
+              aggregation.products,
+              individual_product_resolver
+            )
+          }
+        }
       }
-    }
+    )
+  };
+  const currency_resolver = Resolver(
+    'currency_id',
+    aggregation.currencies,
   );
-  const currency_resolver = Resolver('currency_id', aggregation.currencies),
   const tax_resolver = Resolver('tax_id', aggregation.taxes, {
     type: Resolver('type_id', aggregation.tax_types),
   });
-  const amount_resolver = {
+  const amount_resolver = [{
     currency: currency_resolver,
     vats: [{
       tax: tax_resolver
     }]
-  };
-  const fulfillment_prodyct_resolver = {
+  }];
+  const fulfillment_product_resolver = {
     product: Resolver(
       'product_id',
       aggregation.fulfillments_products,
@@ -305,16 +253,26 @@ const resolveInvoice = (
         country: Resolver('country_id', aggregation.countries),
       }
     ),
-  }
+  };
+  const section_resolver = [{
+    positions: [{
+      product_item: product_resolver,
+      fulfillment_item: fulfillment_product_resolver,
+      amount: amount_resolver,
+      unit_price: {
+        currency: currency_resolver,
+      }
+    }],
+    amounts: amount_resolver,
+  }];
 
-  return resolve(
+  const resolved = resolve(
     invoice,
     {
       customer: Resolver('customer_id', aggregation.customers, {
         commercial: organization_resolver,
         public_sector: organization_resolver,
         private: {
-          user: user_resolver,
           contact_points: contact_points_resolver
         },
       }),
@@ -322,36 +280,38 @@ const resolveInvoice = (
         organization: organization_resolver
       }),
       user: user_resolver,
-      sections: [{
-        positions: [{
-          product_item: {
-            product: product_resolver,
-          },
-          fulfillment_item: fulfillment_prodyct_resolver,
-          amount: amount_resolver,
-          unit_price: {
-            currency: currency_resolver,
-          }
-        }],
-        amounts: [
-          amount_resolver
-        ]
-      }]
+      sections: section_resolver
     }
   );
-}
 
-export const resolveRenderData = (
-  aggregation: AggregatedInvoiceList,
-  invoice: Invoice,
-  urns: KnownUrns,
-) => Buffer.from(
-  JSON.stringify({
-    invoice: resolveInvoice(aggregation, invoice),
-    config: resolveShopConfig(
-      aggregation,
-      invoice.shop_id,
-      urns,
+  resolved.sections?.forEach(
+    (section: typeof resolved.sections[0]) => section.positions?.forEach(
+      (position: typeof section.positions[0]) => {
+        const product = position.product_item?.product;
+        if (product?.product) {
+          product.product = mergeProductVariant(
+            product.product,
+            position.product_item.variant_id
+          );
+        }
+      }
     )
-  })
+  );
+  return resolved;
+};
+
+export const marshallProtobufAny = (
+  obj: any,
+  type_url?: string
+): Any => ({
+  type_url,
+  value: Buffer.from(
+    JSON.stringify(
+      obj
+    )
+  )
+});
+
+export const unmarshallProtobufAny = (payload: Any): any => JSON.parse(
+  payload.value!.toString()
 );
