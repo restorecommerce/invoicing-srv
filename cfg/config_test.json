@@ -1,0 +1,196 @@
+{
+  "logger": {
+    "console": {
+      "handleExceptions": false,
+      "level": "error",
+      "colorize": true,
+      "prettyPrint": true
+    }
+  },
+  "database": {
+    "main": {
+      "database": "invoicing-srv-test"
+    }
+  },
+  "server": {
+    "transports": [
+      {
+        "name": "grpcInvoicing",
+        "provider": "grpc",
+        "addr": "0.0.0.0:50165"
+      }
+    ]
+  },
+  "client": {
+    "invoice": {
+      "address": "localhost:50165"
+    },
+    "acs-srv": {
+      "address": "localhost:50161",
+      "mock": {
+        "protoPath": "io/restorecommerce/access_control.proto",
+        "packageName": "io.restorecommerce.access_control",
+        "serviceName": "AccessControlService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
+    "user": {
+      "address": "localhost:50162",
+      "mock": {
+        "protoPath": "io/restorecommerce/user.proto",
+        "packageName": "io.restorecommerce.user",
+        "serviceName": "UserService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
+    "product": {
+      "address": "localhost:50166",
+      "mock": {
+        "protoPath": "io/restorecommerce/product.proto",
+        "packageName": "io.restorecommerce.product",
+        "serviceName": "ProductService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
+    "manufacturer": {
+      "address": "localhost:50167",
+      "mock": {
+        "protoPath": "io/restorecommerce/manufacturer.proto",
+        "packageName": "io.restorecommerce.manufacturer",
+        "serviceName": "ManufacturerService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
+    "address": {
+      "address": "localhost:50168",
+      "mock": {
+        "protoPath": "io/restorecommerce/address.proto",
+        "packageName": "io.restorecommerce.address",
+        "serviceName": "AddressService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
+    "country": {
+      "address": "localhost:50169",
+      "mock": {
+        "protoPath": "io/restorecommerce/country.proto",
+        "packageName": "io.restorecommerce.country",
+        "serviceName": "CountryService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
+    "tax": {
+      "address": "localhost:50170",
+      "mock": {
+        "protoPath": "io/restorecommerce/tax.proto",
+        "packageName": "io.restorecommerce.tax",
+        "serviceName": "TaxService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
+    "customer": {
+      "address": "localhost:50172",
+      "mock": {
+        "protoPath": "io/restorecommerce/customer.proto",
+        "packageName": "io.restorecommerce.customer",
+        "serviceName": "CustomerService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
+    "shop": {
+      "address": "localhost:50173",
+      "mock": {
+        "protoPath": "io/restorecommerce/shop.proto",
+        "packageName": "io.restorecommerce.shop",
+        "serviceName": "ShopService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
+    "organization": {
+      "address": "localhost:50174",
+      "mock": {
+        "protoPath": "io/restorecommerce/organization.proto",
+        "packageName": "io.restorecommerce.organization",
+        "serviceName": "OrganizationService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
+    "contact_point": {
+      "address": "localhost:50175",
+      "mock": {
+        "protoPath": "io/restorecommerce/contact_point.proto",
+        "packageName": "io.restorecommerce.contact_point",
+        "serviceName": "ContactPointService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
+    "fulfillment_product": {
+      "disabled": false,
+      "address": "localhost:50176",
+      "mock": {
+        "protoPath": "io/restorecommerce/fulfillment_product.proto",
+        "packageName": "io.restorecommerce.fulfillment_product",
+        "serviceName": "FulfillmentProductService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    }
+  },
+  "defaults": {
+    "Shop": {
+      "settings": {
+        "ostorage_domain_prefix": "http://localhost:5000/storage",
+        "default_bucket": "invoices",
+        "disable_invoice_html_storage": "false",
+        "bucket_key_delimiter": "/"
+      }
+    }
+  }
+}
