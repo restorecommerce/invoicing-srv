@@ -4,12 +4,7 @@ import { Worker } from './worker.js';
 
 // cfg and logger
 const cfg = createServiceConfig(process.cwd());
-const loggerCfg = cfg.get('logger') ?? {};
-loggerCfg.esTransformer = (msg: any) => {
-  msg.fields = JSON.stringify(msg.fields);
-  return msg;
-};
-const logger = createLogger(loggerCfg);
+const logger = createLogger(cfg.get('logger') ?? {});
 
 const worker = new Worker();
 worker.start(cfg, logger).then().catch((err) => {
