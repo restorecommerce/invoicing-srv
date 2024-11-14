@@ -57,7 +57,7 @@ export const storeInvoicePositions = async (redisInvoicePosClient: RedisClientTy
       if (msg && msg.invoice_positions) {
         try {
           // extract msg Invoice positions and add to existing
-          for (let eachInvoicePos of msg.invoice_positions) {
+          for (const eachInvoicePos of msg.invoice_positions) {
             eachInvoicePos.invoiceRows.forEach(e => listOfExistingInvoicePositions[0].invoiceRows.push(e));
             // listOfExistingInvoicePositions[0].invoiceRows.push(...eachInvoicePos.invoiceRows);
             const newItems = eachInvoicePos.invoiceRows;
@@ -97,11 +97,11 @@ export const getJSONPaths = (object: any, prefix: string,
     pathsList = [];
   }
   prefix = prefix || '';
+  let output = '';
   switch (typeof object) {
     case 'object':
-      let output = '';
-      for (let k in object) {
-        if (object.hasOwnProperty(k)) {
+      for (const k in object) {
+        if (Object.prototype.hasOwnProperty.call(object, k)) {
           if (prefix === '') {
             output += getJSONPaths(object[k], k, pathsList);
           } else {

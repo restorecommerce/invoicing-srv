@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-this-alias */
 import _ from 'lodash-es';
 import * as chassis from '@restorecommerce/chassis-srv';
 import fetch from 'node-fetch';
@@ -65,14 +66,13 @@ class BillingCommandInterface extends chassis.CommandInterface {
     this.logger.info('Resetting cached data...');
     // billingService.resourceProvider = new BillingResourceProvider(billingService.cfg,
     //   billingService.logger, billingService.microserviceClients);
-    billingService.pendingTasks = new Map<string, Object>();
+    billingService.pendingTasks = new Map<string, object>();
     this.logger.info('Reset concluded');
 
     return {};
   }
 
   makeResourcesRestoreSetup(db: any, collectionName: string): any {
-    const that = this;
     return {
       [`${collectionName}Deleted`]: async function restoreDeleted(message: any,
         ctx: any, config: any, eventName: string): Promise<any> {
@@ -97,7 +97,7 @@ class BillingCommandInterface extends chassis.CommandInterface {
 }
 
 export class BillingService {
-  pendingTasks: Map<string, Object>;
+  pendingTasks: Map<string, object>;
   invoiceService: InvoiceService;
   redisClient: RedisClientType<any, any>;
   redisInvoicePosClient: RedisClientType<any, any>;
@@ -148,12 +148,13 @@ export class BillingService {
         catch(err => this.logger.error('Redis connection error in file store', err));
     }
 
-    this.pendingTasks = new Map<string, Object>();
+    this.pendingTasks = new Map<string, object>();
     const that = this;
 
     this['eventsListener'] = async (msg: any, context: any, config: any,
       eventName: string): Promise<any> => {
 
+      const eachInvoicePos = msg;
       switch (eventName) {
         case 'triggerInvoices':
           await that.sendRenderRequests(msg);
@@ -161,7 +162,6 @@ export class BillingService {
         case 'storeInvoicePositions':
           // store Invoice positions to redis - although an array is sent to kafka
           // it emits each object to kafka (just like for any normal resource)
-          const eachInvoicePos = msg;
           that.logger.info(`Received message with event name ${eventName}:`,
             { eachInvoicePos });
           await storeInvoicePositions(that.redisInvoicePosClient,
@@ -172,12 +172,12 @@ export class BillingService {
             const reqID = msg.id;
             this.logger.debug('Processing render response for', { id: msg.id });
             const split = reqID.split('###');
-            let emailAddress: string = split[0];
+            const emailAddress: string = split[0];
             const invoiceNumber = split[1];
             const org_userID = split[2];
 
             let found = false;
-            for (let [jobID, jobData] of that.pendingTasks) {
+            for (const [jobID, jobData] of that.pendingTasks) {
               if (jobData['pendingEmails'].has(reqID)) {
                 found = true;
                 if (msg.response.length == 0) {
@@ -268,7 +268,7 @@ export class BillingService {
     const topicTypes = _.keys(kafkaCfg.topics);
     this.topics = new Map<string, Topic>();
 
-    for (let topicType of topicTypes) {
+    for (const topicType of topicTypes) {
       const topicName = kafkaCfg.topics[topicType].topic;
       const topic = await this.events.topic(topicName);
       const offSetValue: number = await this.offsetStore.getOffset(topicName);
@@ -276,7 +276,7 @@ export class BillingService {
         { offSetValue });
       if (kafkaCfg.topics[topicType].events) {
         const eventNames = kafkaCfg.topics[topicType].events;
-        for (let eventName of eventNames) {
+        for (const eventName of eventNames) {
           await topic.on(eventName, this['eventsListener'], {
             startingOffset: offSetValue
           });
@@ -346,7 +346,7 @@ export class BillingService {
       const ids = msg.ids;
       // id can be either contract or customer_id stored as key in redis
       // for the invoicePosition
-      for (let id of ids) {
+      for (const id of ids) {
         // the id here refers to contractID or orderID along with org or userID
         const org_userID = id.split('###')[1];
         let invoiceData: any = await this.redisInvoicePosClient.get(id);
@@ -357,7 +357,7 @@ export class BillingService {
           continue;
         }
         invoiceData = JSON.parse(invoiceData.toString());
-        let data: any = {};
+        const data: any = {};
         data.invoice_positions = invoiceData.invoice_positions;
         data.recipient_customer = invoiceData.recipient_customer;
         data.recipient_organization = invoiceData.recipient_organization;
@@ -392,7 +392,7 @@ export class BillingService {
 
   async sendInvoiceEmail(subject: string, body: string, invoice: Buffer,
     email: string, invoiceNumber: string, org_userID: string): Promise<void> {
-    let attachments = [
+    const attachments = [
       {
         buffer: invoice,
         filename: `Invoice_${invoiceNumber}.pdf`,
@@ -409,7 +409,7 @@ export class BillingService {
       }
       fileURLs = JSON.parse(fileURLs);
       // download and add it to attachments
-      for (let url of fileURLs) {
+      for (const url of fileURLs) {
         if (!url.startsWith('//')) {
           this.logger.error('Invalid Object url', { url });
         }
@@ -462,9 +462,9 @@ export class BillingService {
 
     let vatText: string, showVAT = true, credit = false;
     // set credit to true, if there is atleast one negative value in the invoice position
-    for (let ivp of invoice_positions) {
-      let rows = ivp.invoiceRows;
-      for (let row of rows) {
+    for (const ivp of invoice_positions) {
+      const rows = ivp.invoiceRows;
+      for (const row of rows) {
         if (row.amount < 0) {
           credit = true;
           this.logger.info('Invoice contains credit');
@@ -499,12 +499,12 @@ export class BillingService {
 
     // add dueDate and contractStartDate
     const dueDateDays = this.cfg.get('invoiceDueDateDays') ? this.cfg.get('invoiceDueDateDays') : 15;
-    let dueDate = new Date();
+    const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + dueDateDays);
     // iterate through invoice position and convert contract_start_date from snake case to camel case
     invoice_positions[0]?.invoiceRows.forEach(e => e.contractStartDate = (e as any).contract_start_date);
-    let recipientOrgName = recipient_billing_address.organization_name ? recipient_billing_address.organization_name : recipient_organization.name;
-    let invoiceNumber = invoice_no ? invoice_no : (await this.invoiceService.generateInvoiceNumber({})).invoice_no;
+    const recipientOrgName = recipient_billing_address.organization_name ? recipient_billing_address.organization_name : recipient_organization.name;
+    const invoiceNumber = invoice_no ? invoice_no : (await this.invoiceService.generateInvoiceNumber({})).invoice_no;
     const invoice = {
       month: lastMonth.toISOString(),
       logo: senderLogo,
@@ -636,7 +636,7 @@ export class BillingService {
 
     if (!this.pendingTasks.has(msg_id)) {
       this.pendingTasks.set(msg_id, {
-        pendingEmails: new Set<String>()
+        pendingEmails: new Set<string>()
       });
     }
 
@@ -687,14 +687,14 @@ export class BillingService {
     let baseURL = this.cfg.get('pdf-rendering:url');
     const footerTemplatePrefix = 'pdf.footerTemplate';
     const headerTemplatePrefix = 'pdf.headerTemplate';
-    let pdfOptions = [];
+    const pdfOptions = [];
     const paramSeparator = '&';
     getJSONPaths(this.cfg.get('pdf-rendering:options'), '', pdfOptions);
     let pdfOptionsURI = '';
     for (let pdfOption of pdfOptions) {
       if (pdfOption.includes(footerTemplatePrefix)) {
         const footerTemplateURL = pdfOption.split('=')[1];
-        let response = await this.fetchURL(footerTemplateURL, { method: 'GET' });
+        const response = await this.fetchURL(footerTemplateURL, { method: 'GET' });
         // let footerTemplate = response.toString().replace(/(\r\n|\n|\r)/gm, '');
         // footerTemplate = footerTemplate.replace(/\s+/g, '');
         pdfOption = footerTemplatePrefix + '=' + response.toString();

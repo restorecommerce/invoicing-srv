@@ -49,7 +49,7 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
 
   async generateInvoiceNumber(call: any, ctx?: any): Promise<InvoiceNumberResponse> {
     const context = call?.request?.context;
-    let count = await this.redisClient.get('invoices:invoice_number');
+    const count = await this.redisClient.get('invoices:invoice_number');
     await this.redisClient.incr('invoices:invoice_number');
     return { invoice_no: count };
   }
@@ -140,7 +140,7 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
 
   async downloadFile(bucket, key, subject): Promise<any> {
     const call = await this.ostorageService.get({ key, bucket, subject });
-    let buffer = [];
+    const buffer = [];
     call.on('data', (data) => {
       if (data?.response?.payload) {
         buffer.push(data.response.payload.object);
@@ -156,7 +156,7 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
   async read(call: any, context: any): Promise<any> {
     const results = await super.read(call, context);
 
-    for (let itemObj of results.items) {
+    for (const itemObj of results.items) {
       if (itemObj?.payload?.document) {
         itemObj.payload.document =
           Buffer.from(itemObj.payload.document, 'base64').toString();
@@ -171,7 +171,7 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
     const ownerOrgURN = this.cfg.get('ownerAttributeKeys:ownerOrgURN');
     const ownerUserURN = this.cfg.get('ownerAttributeKeys:ownerUserURN');
 
-    for (let org of orgIDs) {
+    for (const org of orgIDs) {
       const result = await super.read(ReadRequest.fromPartial({
         custom_queries: ['filterByOwnership'],
         custom_arguments: {
@@ -186,12 +186,12 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
           result);
         return;
       }
-      let items = [];
+      const items = [];
       result.items.map((itemObj) => items.push(itemObj.payload));
       await this.deleteItemsByOwner(items, orgIDs, userIDs);
     }
 
-    for (let user of userIDs) {
+    for (const user of userIDs) {
       const result = await super.read(ReadRequest.fromPartial({
         custom_queries: ['filterByOwnership'],
         custom_arguments: {
@@ -206,7 +206,7 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
           result);
         return;
       }
-      let items = [];
+      const items = [];
       result.items.map((itemObj) => items.push(itemObj.payload));
       await this.deleteItemsByOwner(items, orgIDs, userIDs);
     }
@@ -219,8 +219,8 @@ export class InvoiceService extends ServiceBase<InvoiceListResponse, InvoiceList
     const ownerOrgURN = this.cfg.get('urns:organization');
     const ownerUserURN = this.cfg.get('urns:user');
 
-    let toDelete = [];
-    for (let invoice of items) {
+    const toDelete = [];
+    for (const invoice of items) {
       if (invoice && invoice.meta && invoice.meta.owner &&
         invoice.meta.owner.length > 0) {
         const ownerList = _.cloneDeep(invoice.meta.owner);
