@@ -1,4 +1,3 @@
-import { type Provider } from 'nconf';
 import { type ServiceImplementation } from 'nice-grpc';
 import { type CompatServiceDefinition } from 'nice-grpc/lib/service-definitions';
 import { type RedisClientType, createClient } from 'redis';
@@ -26,11 +25,13 @@ import {
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/commandinterface.js';
 import { HealthDefinition } from '@restorecommerce/rc-grpc-clients/dist/generated-server/grpc/health/v1/health.js';
 import { ServerReflectionService } from 'nice-grpc-server-reflection';
-import { createServiceConfig } from '@restorecommerce/service-config';
+import {
+  createServiceConfig,
+  type ServiceConfig
+} from '@restorecommerce/service-config';
 import { ServiceBase } from '@restorecommerce/resource-base-interface';
 import { initAuthZ } from '@restorecommerce/acs-client';
 
-export type ServiceConfig = Provider;
 export type ReflectionService = ServiceImplementation<any>;
 export type EventHandler = (msg: any, context?: any, config?: any, eventName?: string) => Promise<any>;
 export interface ServiceBindConfig<T extends CompatServiceDefinition> extends BindConfig<T> {

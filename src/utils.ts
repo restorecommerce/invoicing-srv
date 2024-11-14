@@ -1,4 +1,3 @@
-import * as _ from 'lodash-es';
 import {
   Invoice,
   InvoiceList,
@@ -164,18 +163,24 @@ const mergeProductVariantRecursive = (nature: ProductNature, variant_id: string)
     const template = mergeProductVariantRecursive(
       nature, variant.parent_variant_id
     );
-    return _.merge(template, variant);
+    return {
+      ...template,
+      ...variant,
+    };
   }
   else {
     return variant;
   }
-};;
+};
 
 const mergeProductVariant = (product: IndividualProduct, variant_id: string): ProductVariant => {
   const nature = product.physical ?? product.virtual ?? product.service;
   const variant = mergeProductVariantRecursive(nature, variant_id);
-  return _.merge(product, variant);
-};;
+  return {
+    ...product,
+    ...variant
+  }
+};
 
 export const resolveInvoice = (
   aggregation: AggregatedInvoiceList,
