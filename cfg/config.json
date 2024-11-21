@@ -391,6 +391,56 @@
         "disable_invoice_html_storage": "false",
         "bucket_key_delimiter": "/"
       }
-    }
+    },
+    "Templates": [
+      {
+        "body": {
+          "url": "file://./templates/invoice_header.hbs"
+        },
+        "ordinal": 0,
+        "use_case": "INVOICE_PDF"
+      },
+      {
+        "body": {
+          "url": "file://./templates/invoice_body.hbs"
+        },
+        "layout": {
+          "url": "file://./templates/invoice_layout.hbs"
+        },
+        "ordinal": 1,
+        "use_case": "INVOICE_PDF"
+      },
+      {
+        "body": {
+          "url": "file://./templates/invoice_footer.hbs"
+        },
+        "ordinal": 2,
+        "use_case": "INVOICE_PDF"
+      },
+      {
+        "body": {
+          "url": "file://./templates/invoice_header.hbs"
+        },
+        "ordinal": 0,
+        "use_case": "INVOICE_EMAIL"
+      },
+      {
+        "body": {
+          "url": "file://./templates/invoice_body.hbs"
+        },
+        "layout": {
+          "url": "file://./templates/invoice_layout.hbs"
+        },
+        "ordinal": 1,
+        "use_case": "INVOICE_EMAIL"
+      },
+      {
+        "body": {
+          "url": "file://./templates/invoice_footer.hbs"
+        },
+        "ordinal": 2,
+        "use_case": "INVOICE_EMAIL"
+      }
+    ]
   }
 }

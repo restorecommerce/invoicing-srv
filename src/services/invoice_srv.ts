@@ -34,7 +34,7 @@ import {
 import {
   type CallContext
 } from 'nice-grpc-common';
-import { type ServiceConfig } from '../experimental/WorkerBase.js';
+import { type ServiceConfig } from '@restorecommerce/service-config';
 import { type Logger } from '@restorecommerce/logger';
 import {
   DeleteRequest,
@@ -111,6 +111,18 @@ import {
   ResourceAggregator,
   ResourceMap,
 } from '../experimental/ResourceAggregator.js';
+import {
+  Template,
+  TemplateServiceDefinition,
+  TemplateUseCase,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/template.js';
+import {
+  SettingServiceDefinition,
+  Setting,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/setting.js';
+import {
+  File
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/file.js';
 import { Readable, Transform } from 'node:stream';
 import { InvoiceNumberService } from './invoice_number_srv.js';
 import {
@@ -119,12 +131,12 @@ import {
   type KnownUrns,
   type AggregationTemplate,
   type AggregatedInvoiceList,
-  type Setting
+  type KnownSetting
 } from '../utils.js';
 import { ResourceAwaitQueue } from '../experimental/ResourceAwaitQueue.js';
 import { ClientRegister } from '../experimental/ClientRegister.js';
 import { marshallProtobufAny } from '../utils.js';
-import { File } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/file.js';
+
 
 export type ProductNature = PhysicalProduct | VirtualProduct | ServiceProduct;
 export type ProductVariant = PhysicalVariant | VirtualVariant | ServiceVariant;
@@ -167,34 +179,32 @@ export class InvoiceService
 
   protected readonly status_codes = {
     OK: {
-      id: '',
       code: 200,
       message: 'OK',
     },
     NOT_FOUND: {
-      id: '',
       code: 404,
       message: '{entity} {id} not found!',
     },
     NO_LEGAL_ADDRESS: {
-      id: '',
       code: 404,
       message: '{entity} {id} has no legal address!',
     },
     NO_LABEL: {
-      id: '',
       code: 404,
       message: '{entity} {id} has no label!',
     },
     NOT_SUBMITTED: {
-      id: '',
       code: 400,
       message: '{entity} {id} is not submitted!',
     },
-    SHOP_ID_NOT_IDENTICAL: {
-      id: '',
+    CONTENT_NOT_SUPPORTED: {
       code: 400,
-      message: '{entity} {id} Fulfillment.shopId must be listed in Courier.shopIds!',
+      message: '{entity} {id}: Content type {error} is not supported!',
+    },
+    PROTOCOL_NOT_SUPPORTED: {
+      code: 400,
+      message: '{entity} {id}: Protocol of {error} is not supported!',
     },
   };
 
@@ -211,6 +221,10 @@ export class InvoiceService
       code: 500,
       message: 'Query limit 1000 exhausted!',
     },
+    NO_TEMPLATES: {
+      code: 500,
+      message: 'No render templates defined!',
+    },
     TIMEOUT: {
       code: 500,
       message: 'Request timeout, API not responding!',
@@ -224,7 +238,8 @@ export class InvoiceService
   protected readonly notification_service: Client<NotificationReqServiceDefinition>;
   protected readonly ostorage_service: Client<ObjectServiceDefinition>;
   protected readonly user_service: Client<UserServiceDefinition>;
-  protected readonly default_setting: Setting;
+  protected readonly default_setting: KnownSetting;
+  protected readonly default_templates: Template[] = [];
   protected readonly urns: KnownUrns;
   protected readonly emitters = {
     INVALID: 'invoiceInvalid',
@@ -310,6 +325,42 @@ export class InvoiceService
     this.tech_user = cfg.get('authorization:techUser');
   }
 
+  protected createStatusCode(
+    id?: string,
+    entity?: string,
+    status?: Status,
+    entity_id?: string,
+    error?: string,
+  ): Status {
+    return {
+      id,
+      code: status?.code ?? 500,
+      message: status?.message?.replace(
+        '{error}', error ?? 'undefined'
+      ).replace(
+        '{entity}', entity ?? 'undefined'
+      ).replace(
+        '{id}', entity_id ?? 'undefined'
+      ) ?? 'Unknown status',
+    };
+  }
+
+  protected throwStatusCode(
+    id?: string,
+    entity?: string,
+    status?: Status,
+    entity_id?: string,
+    error?: string,
+  ): Status {
+    throw this.createStatusCode(
+      id,
+      entity,
+      status,
+      entity_id,
+      error,
+    );
+  }
+
   protected catchStatusError(e: any, id?: string): Status {
     const status = {
       id,
@@ -320,8 +371,23 @@ export class InvoiceService
     return status;
   }
 
+  protected createOperationStatusCode(
+    status?: OperationStatus,
+    entity?: string,
+    id?: string,
+  ): OperationStatus {
+    return {
+      code: status?.code ?? 500,
+      message: status?.message?.replace(
+        '{entity}', entity ?? 'undefined'
+      ).replace(
+        '{id}', id ?? 'undefined'
+      ) ?? 'Unknown status',
+    };
+  }
+
   protected catchOperationError(e: any) {
-    const error = {
+    const status = {
       items: new Array<any>(),
       total_count: 0,
       operation_status: {
@@ -329,61 +395,60 @@ export class InvoiceService
         message: e?.message ?? e?.details ?? (e ? JSON.stringify(e) : 'Unknown Error!'),
       }
     };
-    this.logger?.error(error);
-    return error;
+    this.logger?.error(status);
+    return status;
   }
 
   protected resolveShopSetting(
-    shop: Shop,
-  ) {
-    const default_bucket = shop.settings?.find(
+    setting: Setting,
+  ): KnownSetting {
+    const default_bucket = setting.settings.find(
       a => a.id === this.urns.invoice_html_bucket
     )?.value ?? this.default_setting.default_bucket;
 
-    const setting: Setting = {
+    return {
       default_bucket,
-      invoice_number_start: Number.parseInt(shop.settings?.find(
+      invoice_number_start: Number.parseInt(setting.settings.find(
         a => a.id === this.urns.invoice_number_start
       )?.value ?? this.default_setting.invoice_number_start?.toString() ?? '1'),
-      invoice_number_increment: Number.parseInt(shop.settings?.find(
+      invoice_number_increment: Number.parseInt(setting.settings.find(
         a => a.id === this.urns.invoice_number_increment
       )?.value ?? this.default_setting.invoice_number_increment?.toString() ?? '1'),
-      invoice_html_bucket: shop.settings?.find(
+      invoice_html_bucket: setting.settings.find(
         a => a.id === this.urns.invoice_html_bucket
       )?.value ?? this.default_setting.invoice_html_bucket ?? default_bucket,
-      invoice_pdf_bucket: shop.settings?.find(
+      invoice_pdf_bucket: setting.settings.find(
         a => a.id === this.urns.invoice_pdf_bucket
       )?.value ?? this.default_setting.invoice_pdf_bucket ?? default_bucket,
-      disable_invoice_html_storage: shop.settings?.find(
+      disable_invoice_html_storage: setting.settings.find(
         a => a.id === this.urns.enable_invoice_html_storage
       )?.value ?? this.default_setting.disable_invoice_html_storage,
-      disable_invoice_pdf_storage: shop.settings?.find(
+      disable_invoice_pdf_storage: setting.settings.find(
         a => a.id === this.urns.enable_invoice_html_storage
       )?.value ?? this.default_setting.disable_invoice_pdf_storage,
-      invoice_html_bucket_options: JSON.parse(shop.settings?.find(
+      invoice_html_bucket_options: JSON.parse(setting.settings.find(
         a => a.id === this.urns.invoice_html_bucket_options
       )?.value ?? null) ?? this.default_setting.invoice_html_bucket_options,
-      invoice_pdf_bucket_options: JSON.parse(shop.settings?.find(
+      invoice_pdf_bucket_options: JSON.parse(setting.settings.find(
         a => a.id === this.urns.invoice_html_bucket_options
       )?.value ?? null) ?? this.default_setting.invoice_pdf_bucket_options,
-      puppeteer_options: JSON.parse(shop.settings?.find(
+      puppeteer_options: JSON.parse(setting.settings.find(
         a => a.id === this.urns.invoice_pdf_puppeteer_options
       )?.value ?? null) ?? this.default_setting.puppeteer_options,
-      email_provider: shop.settings?.find(
+      email_provider: setting.settings.find(
         a => a.id === this.urns.email_provider
       )?.value ?? this.default_setting.email_provider,
-      email_in_cc: shop.settings?.filter(
+      email_in_cc: setting.settings.filter(
         a => a.id === this.urns.email_in_cc
       )?.flatMap(
         a => a.value?.split(',')
       ) ?? this.default_setting.email_in_cc,
-      email_subject_template: shop.settings?.find(
+      email_subject_template: setting.settings.find(
         a => a.id === this.urns.email_subject_template
       )?.value ?? this.default_setting.email_subject_template,
       bucket_key_delimiter: this.default_setting.bucket_key_delimiter,
       ostorage_domain_prefix: this.default_setting.ostorage_domain_prefix,
     };
-    return setting;
   }
 
   protected async resolveProductBundles(
@@ -444,14 +509,21 @@ export class InvoiceService
     return super.read(request, context);
   }
 
-  public async generateInvoiceNumbers(
+  protected async generateInvoiceNumbers(
     aggregation: AggregatedInvoiceList,
     context?: CallContext,
   ) {
     const shops = aggregation.shops;
     const settings = new Map(
       shops.all.map(
-        shop => [shop.id, this.resolveShopSetting(shop)]
+        shop => [
+          shop.id,
+          this.resolveShopSetting(
+            aggregation.settings.get(
+              shop.setting_id
+            )
+          )
+        ]
       )
     );
 
@@ -555,10 +627,21 @@ export class InvoiceService
       resp => resp.get(request.shop_id)
     );
 
-    const setting = this.resolveShopSetting(shop);
+    const setting = await this.aggregator.getByIds<Setting>(
+      shop.setting_id!,
+      ShopServiceDefinition,
+      request.subject,
+      context,
+    ).then(
+      resp => resp.get(shop.setting_id!)
+    ).then(
+      setting => this.resolveShopSetting(
+        setting
+      )
+    );
+
     const key = `invoiceCounter:${shop.id}`;
     const increment = setting.invoice_number_increment ?? 1;
-
     const current = await this.redis.exists(
       key
     ).then(
@@ -736,7 +819,27 @@ export class InvoiceService
             ).filter(i => i),
             container: 'taxes',
             entity: 'Tax',
-          }
+          },
+          {
+            service: TemplateServiceDefinition,
+            map_by_ids: (aggregation) => [].concat(
+              aggregation.shops?.all.flatMap(
+                shop => shop?.template_ids
+              ),
+            ).filter(i => i),
+            container: 'templates',
+            entity: 'Template',
+          },
+          {
+            service: SettingServiceDefinition,
+            map_by_ids: (aggregation) => [].concat(
+              aggregation.shops?.all.flatMap(
+                shop => shop?.setting_id
+              ),
+            ).filter(i => i),
+            container: 'settings',
+            entity: 'Setting',
+          },
         ],
         {} as AggregationTemplate,
         subject,
@@ -772,7 +875,6 @@ export class InvoiceService
     aggregation: AggregatedInvoiceList,
     invoice: Invoice,
   ) {
-    // const shop = aggregation.shops.get(invoice.shop_id);
     const resolved = {
       invoice: resolveInvoice(
         aggregation,
@@ -783,6 +885,98 @@ export class InvoiceService
     };
     const buffer = marshallProtobufAny(resolved);
     return buffer;
+  }
+
+  protected async loadDefaultTemplates(subject?: Subject, context?: CallContext) {
+    if(this.default_templates.length) {
+      return this.default_templates;
+    }
+
+    this.default_templates.push(...(this.cfg.get('defaults:Templates') ?? []));
+    const ids = this.default_templates?.map(t => t.id);
+    if (ids.length) {
+      await this.aggregator.getByIds(
+        ids,
+        TemplateServiceDefinition,
+        subject ?? this.tech_user,
+        context,
+      ).then(
+        resp_map => {
+          this.default_templates.forEach(
+            template => Object.assign(
+              template,
+              resp_map.get(template.id, null) // null for ignore missing
+            )
+          )
+        }
+      );
+    }
+
+    return this.default_templates;
+  }
+
+  protected async fetchFile(url: string, subject?: Subject): Promise<string> {
+    if (url?.startsWith('file://')) {
+      return fs.readFileSync(url).toString();
+    }
+    else if (url?.startsWith('http')) {
+      return fetch(
+        url,
+        subject?.token ? {
+          headers: {
+            Authorization: `Bearer ${subject.token}`
+          }
+        } : undefined
+      ).then(resp => resp.text())
+    }
+    else {
+      throw this.createStatusCode(
+        undefined,
+        'Template',
+        this.status_codes.PROTOCOL_NOT_SUPPORTED,
+        undefined,
+        url,
+      );
+    }
+  }
+
+  protected async fetchLocalization(
+    template: Template,
+    locales: string[],
+    subject?: Subject,
+  ) {
+    const locale = locales.find(
+      a => template.localization?.some(
+        b => b.local_codes.includes(a)
+      )
+    );
+    const L = template.localization?.find(
+      a => a.local_codes.includes(locale)
+    );
+    const url = L?.l10n?.url;
+    const l10n = url ? await this.fetchFile(url, subject).then(
+      text => {
+        if (L.l10n.content_type === 'application/json') {
+          return JSON.parse(text);
+        }
+        /*else if (L.l10n.content_type === 'application/csv') {
+          // TODO
+        }*/
+        else {
+          throw this.createStatusCode(
+            template.id,
+            'Template',
+            this.status_codes.CONTENT_NOT_SUPPORTED,
+            template.id,
+            L.l10n.content_type,
+          );
+        }
+      }
+    ).then(
+      l10n => Object.assign(l10n, { _locale: locale })
+    ) : undefined;
+  
+    return l10n;
   }
 
   @access_controlled_function({
@@ -884,58 +1078,122 @@ export class InvoiceService
       ).then(
         aggregation => this.generateInvoiceNumbers(aggregation, context)
       );
-      const template = fs.readFileSync('templates/hello_world.hbs').toString();
+
+      const default_templates = this.default_templates.filter(
+        template => template.use_case === TemplateUseCase.INVOICE_PDF
+      )
       const response = await Promise.all(aggregation.items.map(
-        item => this.renderingTopic.emit(
-          'renderRequest',
-          {
-            id: `invoice/pdf/${item!.id}`,
-            payloads: [
-              {
-                content_type: 'text/html',
-                data: this.packRenderData(
-                  aggregation,
-                  item,
-                ),
-                templates: marshallProtobufAny({
-                  r_body: { body: template },
-                })
-              }
-            ],
-          } as RenderRequest
-        ).then(
-          async (): Promise<RenderResult> => ({
-            id: item.id,
-            body: await this.awaits_pdf_bodies.await(item!.id, 5000),
-            status: {
-              code: 200,
-              message: 'OK',
-            }
-          })
-        ).catch(
-          (err): RenderResult => ({
-            status: this.catchStatusError(err, item.id)
-          })
-        ).then(
-          response => {
-            if (response.status?.code === 200) {
-              const invoice = response_map.get(response.id).payload;
-              const shop = aggregation.shops.get(invoice.shop_id);
-              const setting = this.resolveShopSetting(shop);
-              return this.renderPdf(
-                invoice,
-                response.body,
-                setting,
-                this.tech_user ?? request.subject,
-                context,
-              );
-            }
-            else {
-              response_map.get(item.id).status = response.status;
-              return undefined;
-            }
+        async (item) => {
+          const shop = aggregation.shops.get(item.shop_id);
+          const customer = aggregation.customers.get(item.customer_id);
+          const setting = this.resolveCustomerSetting(
+            aggregation.settings.get(
+              customer.setting_id
+            )
+          );
+          const locales = setting.locales.split(/\s*,\s*/);
+          const templates = shop.template_ids?.map(
+            id => aggregation.templates?.get(id)
+          ).filter(
+            template => template.use_case === TemplateUseCase.INVOICE_PDF
+          ).sort(
+            (a, b) => (a.ordinal ?? 0) - (b.ordinal ?? 0)
+          );
+
+          if (!templates.length && default_templates.length > 0) {
+            templates.push(...default_templates);
           }
-        )
+          else {
+            throw this.createOperationStatusCode(
+              this.operation_status_codes.NO_TEMPLATES
+            );
+          }
+
+          const bodies = await Promise.all(
+            templates.map(
+              template => template.body?.url ? this.fetchFile(
+                template.body.url, request.subject
+              ) : undefined
+            )
+          );
+          const layouts = await Promise.all(
+            templates.map(
+              template => template.layout?.url ? this.fetchFile(
+                template.layout.url, request.subject
+              ) : undefined
+            )
+          );
+          const l10n = await Promise.all(
+            templates.map(
+              template => this.fetchLocalization(
+                template, locales, request.subject
+              )
+            )
+          );
+
+          return this.renderingTopic.emit(
+            'renderRequest',
+            {
+              id: `invoice/pdf/${item!.id}`,
+              payloads: templates.map(
+                (template, i) => ({
+                  content_type: 'text/html',
+                  data: this.packRenderData(
+                    aggregation,
+                    item,
+                  ),
+                  templates: marshallProtobufAny({
+                    [i]: {
+                      body: bodies[i],
+                      layout: layouts[i],
+                    },
+                  }),
+                  style_url: template.styles.find(s => s.url),
+                  options: l10n[i] ? marshallProtobufAny({
+                    locale: l10n[i]._locale,
+                    texts: l10n[i]
+                  }) : undefined
+                })
+              ),
+            } as RenderRequest
+          ).then(
+            async (): Promise<RenderResult> => ({
+              id: item.id,
+              body: await this.awaits_pdf_bodies.await(item!.id, 5000),
+              status: {
+                code: 200,
+                message: 'OK',
+              }
+            })
+          ).catch(
+            (err): RenderResult => ({
+              status: this.catchStatusError(err, item.id)
+            })
+          ).then(
+            response => {
+              if (response.status?.code === 200) {
+                const invoice = response_map.get(response.id).payload;
+                const shop = aggregation.shops.get(invoice.shop_id);
+                const setting = this.resolveShopSetting(
+                  aggregation.settings.get(
+                    shop.setting_id
+                  )
+                );
+                return this.renderPdf(
+                  invoice,
+                  response.body,
+                  setting,
+                  this.tech_user ?? request.subject,
+                  context,
+                );
+              }
+              else {
+                response_map.get(item.id).status = response.status;
+                return undefined;
+              }
+            }
+          )
+        }
       )).then(
         items => items.filter(
           item => item.status?.code === 200
@@ -1065,7 +1323,11 @@ export class InvoiceService
           const shop = aggregation.shops.get(
             invoice.shop_id
           );
-          const setting = this.resolveShopSetting(shop);
+          const setting = this.resolveShopSetting(
+            aggregation.settings.get(
+              shop.setting_id
+            )
+          );
 
           return this.sendNotification(
             invoice,
@@ -1143,7 +1405,7 @@ export class InvoiceService
   protected async storageHtmlRenderResponse(
     invoice: Invoice,
     body: string,
-    setting: Setting,
+    setting: KnownSetting,
     subject: Subject,
     context?: any,
   ) {
@@ -1225,7 +1487,7 @@ export class InvoiceService
   protected async storagePDFRenderResponse(
     invoice: Invoice,
     buffer: Buffer,
-    setting: Setting,
+    setting: KnownSetting,
     subject: Subject,
     context?: any,
   ) {
@@ -1307,7 +1569,7 @@ export class InvoiceService
   protected async renderPdf(
     invoice: Invoice,
     body: string,
-    setting: Setting,
+    setting: KnownSetting,
     subject?: Subject,
     context?: any,
   ): Promise<InvoiceResponse> {
@@ -1406,7 +1668,7 @@ export class InvoiceService
   protected async sendNotification(
     invoice: Invoice,
     body: string,
-    setting: Setting,
+    setting: KnownSetting,
     document_ids?: string[],
     subject?: Subject,
     context?: any,

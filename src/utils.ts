@@ -63,6 +63,12 @@ import {
   Timezone,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/timezone.js';
 import {
+  Template,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/template.js';
+import {
+  Setting,
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/setting.js';
+import {
   type Aggregation,
   resolve,
   Resolver,
@@ -127,11 +133,13 @@ export type AggregationTemplate = {
   locales?: ResourceMap<Locale>;
   timezones?: ResourceMap<Timezone>;
   currencies?: ResourceMap<Currency>;
+  templates?: ResourceMap<Template>;
+  settings?: ResourceMap<Setting>;
 };
 
 export type AggregatedInvoiceList = Aggregation<InvoiceList, AggregationTemplate>;
 
-export type Setting = {
+export type KnownSetting = {
   default_bucket?: string;
   invoice_number_start?: number;
   invoice_number_increment?: number;
