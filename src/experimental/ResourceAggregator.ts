@@ -102,7 +102,7 @@ export class ResourceMap<T extends Resource = any> extends Map<string, T> {
     id: string,
     onMissing: OnMissingCallback = DEFAULT_STRICT_CALLBACK
   ): T {
-    if (onMissing && !this.has(id)) {
+    if (id && onMissing && !this.has(id)) {
       const error = onMissing(id, this.entity);
       if (error) {
         throw error;

@@ -93,6 +93,14 @@
       "fullName": "io.restorecommerce.contact_point.ContactPointService",
       "address": "localhost:50053"
     },
+    "template": {
+      "fullName": "io.restorecommerce.template.TemplateService",
+      "address": "localhost:50053"
+    },
+    "setting": {
+      "fullName": "io.restorecommerce.setting.SettingService",
+      "address": "localhost:50053"
+    },
     "fulfillment_courier": {
       "fullName": "io.restorecommerce.fulfillment_courierFulfillmentCourierService",
       "address": "localhost:50067",
@@ -196,6 +204,7 @@
           "localhost:29092"
         ]
       },
+      "timeout": 5000,
       "latestOffset": false,
       "invoiceCreated": {
         "messageObject": "io.restorecommerce.invoice.Invoice"
@@ -383,20 +392,26 @@
       "message": "Query limit 1000 for {entity} exhausted!"
     }
   },
-  "defaults": {
-    "Shop": {
-      "settings": {
-        "ostorage_domain_prefix": "localhost:5000/storage",
-        "default_bucket": "invoices",
-        "disable_invoice_html_storage": "false",
-        "bucket_key_delimiter": "/"
-      }
+  "default": {
+    "Setting": {
+      "shop_default_bucket": "invoices",
+      "shop_html_bucket_disabled": true,
+      "shop_bucket_endpoint": "http://localhost:5000/storage"
     },
     "Templates": [
       {
         "body": {
           "url": "file://./templates/invoice_header.hbs"
         },
+        "localization": [
+          {
+            "local_codes": ["en"],
+            "l10n": {
+              "url": "file://./templates/l10n.csv",
+              "content_type": "text/csv"
+            }
+          }
+        ],
         "ordinal": 0,
         "use_case": "INVOICE_PDF"
       },
@@ -407,6 +422,15 @@
         "layout": {
           "url": "file://./templates/invoice_layout.hbs"
         },
+        "localization": [
+          {
+            "local_codes": ["en"],
+            "l10n": {
+              "url": "file://./templates/l10n.csv",
+              "content_type": "text/csv"
+            }
+          }
+        ],
         "ordinal": 1,
         "use_case": "INVOICE_PDF"
       },
@@ -414,14 +438,48 @@
         "body": {
           "url": "file://./templates/invoice_footer.hbs"
         },
+        "localization": [
+          {
+            "local_codes": ["en"],
+            "l10n": {
+              "url": "file://./templates/l10n.csv",
+              "content_type": "text/csv"
+            }
+          }
+        ],
         "ordinal": 2,
         "use_case": "INVOICE_PDF"
+      },
+      {
+        "body": {
+          "url": "file://./templates/invoice_subject.hbs"
+        },
+        "localization": [
+          {
+            "local_codes": ["en"],
+            "l10n": {
+              "url": "file://./templates/l10n.csv",
+              "content_type": "text/csv"
+            }
+          }
+        ],
+        "ordinal": 0,
+        "use_case": "INVOICE_EMAIL"
       },
       {
         "body": {
           "url": "file://./templates/invoice_header.hbs"
         },
-        "ordinal": 0,
+        "localization": [
+          {
+            "local_codes": ["en"],
+            "l10n": {
+              "url": "file://./templates/l10n.csv",
+              "content_type": "text/csv"
+            }
+          }
+        ],
+        "ordinal": 1,
         "use_case": "INVOICE_EMAIL"
       },
       {
@@ -431,14 +489,32 @@
         "layout": {
           "url": "file://./templates/invoice_layout.hbs"
         },
-        "ordinal": 1,
+        "localization": [
+          {
+            "local_codes": ["en"],
+            "l10n": {
+              "url": "file://./templates/l10n.csv",
+              "content_type": "text/csv"
+            }
+          }
+        ],
+        "ordinal": 2,
         "use_case": "INVOICE_EMAIL"
       },
       {
         "body": {
           "url": "file://./templates/invoice_footer.hbs"
         },
-        "ordinal": 2,
+        "localization": [
+          {
+            "local_codes": ["en"],
+            "l10n": {
+              "url": "file://./templates/l10n.csv",
+              "content_type": "text/csv"
+            }
+          }
+        ],
+        "ordinal": 3,
         "use_case": "INVOICE_EMAIL"
       }
     ]

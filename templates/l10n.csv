@@ -1,0 +1,4 @@
+key, en, de
+l10n.invoice.title, Invoice, Rechnung
+l10n.invoice.number, "Invoice Number", Rechnungsnummer
+l10n.invoice.reference.id, "Order Number", Bestellnummer

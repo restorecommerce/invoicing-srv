@@ -39,6 +39,13 @@ import {
   TaxTypeListResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/tax_type.js';
 import {
+  TemplateListResponse,
+  TemplateUseCase
+} from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/template.js';
+import {
+  SettingListResponse,
+} from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/setting.js';
+import {
   UserListResponse,
   UserResponse,
   UserType
@@ -204,7 +211,7 @@ const products: ProductResponse[] = [
     payload: {
       id: 'physicalProduct_1',
       active: true,
-      shopId: 'shop_1',
+      shopIds: ['shop_1'],
       tags: [],
       associations: [],
       product: {
@@ -331,7 +338,7 @@ const shops = [
       id: 'shop_1',
       name: 'Shop1',
       description: 'a mocked shop for unit tests',
-      domain: 'www.shop.com',
+      domains: ['www.shop.com'],
       organizationId: organizations[0].payload?.id,
       shopNumber: '0000000001',
     },
@@ -693,6 +700,51 @@ const fulfillmentCouriers: FulfillmentCourierListResponse = {
   }
 };
 
+const templates: TemplateListResponse = {
+  items: [
+    {
+      payload: {
+        id: 'template_invoice_body_pdf',
+        useCase: TemplateUseCase.INVOICE_PDF,
+        body: {
+          url: 'file://./templates/invoice_body.hbs',
+          contentType: 'text/html',
+        },
+        layout: {
+          url: 'file://./templates/invoice_layout.hbs',
+          contentType: 'text/html',
+        },
+        localization: [
+          {
+            localCodes: ['en'],
+            l10n: {
+              url: 'file://./templates/l10n.json',
+              contentType: 'application/json',
+            }
+          }
+        ],
+      },
+      status: {
+        code: 200,
+        message: 'Mocked!'
+      }
+    }
+  ],
+  totalCount: 1,
+  operationStatus: {
+    code: 200,
+    message: 'Mocked!',
+  }
+};
+
+const settings: SettingListResponse = {
+  totalCount: 0,
+  operationStatus: {
+    code: 200,
+    message: 'Mocked!',
+  }
+} 
+
 export const fulfillmentProducts: FulfillmentProductListResponse = {
   items: [
     {
@@ -972,7 +1024,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
     code: 200,
     message: 'Mocked!'
   }
-}
+};
 
 export const samples = {
   residentialAddresses,
@@ -1166,6 +1218,18 @@ export const rules: { [key: string]: any } = {
       totalCount: 1,
       operationStatus
     }),
+  },
+  template: {
+    read: (
+      call: any,
+      callback: (error: any, response: TemplateListResponse) => void,
+    ) => callback(null, templates),
+  },
+  setting: {
+    read: (
+      call: any,
+      callback: (error: any, response: SettingListResponse) => void,
+    ) => callback(null, settings),
   },
   fulfillment_courier: {
     read: (

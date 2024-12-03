@@ -76,38 +76,36 @@ import {
   ResourceMap,
 } from './experimental/ResourceAggregator.js';
 import { Any } from '@restorecommerce/rc-grpc-clients/dist/generated-server/google/protobuf/any.js';
+import { Payload_Strategy } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/rendering.js';
 
 export const DefaultUrns = {
-  invoice_role: 'urn:invoice_role',
-  render_options: 'urn:render_options',
-  render_strategy: 'urn:render_strategy',
-  render_style: 'render_style',
-  render_template: 'render_template',
-  pdf_template_id: 'pdf_template_id',
-  pdf_template_url: 'pdf_template_url',
-  email_template_id: 'email_template_id',
-  email_template_url: 'email_template_url',
-  email_provider: 'email_provider',
-  email_in_cc: 'email_in_cc',
-  email_subject_template: 'email_subject_template',
-  default_bucket: 'default_bucket',
-  invoice_html_bucket: 'invoice_html_bucket',
-  invoice_html_bucket_options: 'invoice_html_bucket_options',
-  invoice_pdf_bucket: 'invoice_pdf_bucket',
-  invoice_pdf_bucket_options: 'invoice_pdf_bucket_options',
-  invoice_pdf_puppeteer_options: 'invoice_pdf_puppeteer_options',
-  enable_invoice_html_storage: 'enable_invoice_html_storage',
-  enable_invoice_pdf_storage: 'enable_invoice_pdf_storage',
-  invoice_number_start: 'invoice_number_start',
-  invoice_number_increment: 'invoice_number_increment',
-  invoice_number_pattern: 'invoice_number_pattern',
-  disable_invoice_html_storage: 'disable_invoice_html_storage',
-  disable_invoice_pdf_storage: 'disable_invoice_pdf_storage',
-  puppeteer_options: 'puppeteer_options',
+  shop_default_bucket:                'urn:restorecommerce:shop:setting:invoice:bucket:default',        // [string]: overrides default bucket for file storage - default: cfg -> 'invoice'
+  shop_html_bucket:                   'urn:restorecommerce:shop:setting:invoice:bucket:html',           // [string]: bucket for html render results - default: default_bucket -> cfg -> 'invoice'
+  shop_html_bucket_options:           'urn:restorecommerce:shop:setting:invoice:bucket:html:options',   // [json]: override html bucket options - default: cfg -> null
+  shop_html_bucket_disabled:          'urn:restorecommerce:shop:setting:invoice:bucket:html:disabled',  // [boolean]: deactivate storage of html render results - default: cfg -> false
+  shop_pdf_bucket:                    'urn:restorecommerce:shop:setting:invoice:bucket:pdf',            // [string]: bucket for pdf render results - default: default_bucket -> cfg -> 'invoice' 
+  shop_pdf_bucket_options:            'urn:restorecommerce:shop:setting:invoice:bucket:pdf:options',    // [json]: override pdf bucket options - default: cfg -> null
+  shop_pdf_bucket_disabled:           'urn:restorecommerce:shop:setting:invoice:bucket:pdf:disabled',   // [boolean]: deactivate storage of pdf render results - default: cfg -> false
+  shop_bucket_key_delimiter:          'urn:restorecommerce:shop:setting:invoice:bucket:key:delimiter',  // [char]: delimiter used for generated bucket keys - default: cfg -> '/'
+  shop_bucket_endpoint:               'urn:restorecommerce:shop:setting:invoice:bucket:endpoint',       // [string] endpoint to bucket server (incl. protocol and ports if needed) -> default: cfg -> null
+  shop_pdf_render_options:            'urn:restorecommerce:shop:setting:invoice:pdf:render:options',    // [json]: override pdf rendering options - default: cfg -> null
+  shop_pdf_render_strategy:           'urn:restorecommerce:shop:setting:invoice:pdf:render:strategy',   // [enum]: override pdf rendering strategy - default: cfg -> INLINE
+  shop_puppeteer_options:             'urn:restorecommerce:shop:setting:invoice:puppeteer:options',     // [json]: override pdf puppeteer options - default: cfg -> null
+  shop_email_render_options:          'urn:restorecommerce:shop:setting:invoice:email:render:options',  // [json]: override email rendering options - default: cfg -> null
+  shop_email_render_strategy:         'urn:restorecommerce:shop:setting:invoice:email:render:strategy', // [enum]: override email rendering strategy - default: cfg -> INLINE
+  shop_email_provider:                'urn:restorecommerce:shop:setting:invoice:email:provider',        // [string]: override to supported email provider - default: cfg -> null
+  shop_email_cc:                      'urn:restorecommerce:shop:setting:invoice:email:cc',              // [string]: add recipients in CC (comma separated) - default: cfg -> null
+  shop_email_bcc:                     'urn:restorecommerce:shop:setting:invoice:email:bcc',             // [string]: add recipients in BC (comma separated) - default: cfg -> null
+  shop_invoice_number_start:          'urn:restorecommerce:shop:setting:invoice:number:start',          // [number]: start for invoice number counter if no counter is given or smaller - default: cfg -> 0
+  shop_invoice_number_increment:      'urn:restorecommerce:shop:setting:invoice:number:increment',      // [number]: increment for invoice number counter - default: cfg -> 1
+  shop_invoice_number_pattern:        'urn:restorecommerce:shop:setting:invoice:number:pattern',        // [number]: pattern for invoice number using sprintf syntax - default: cfg -> 'invoice-%010i'
+  shop_locales:                       'urn:restorecommerce:shop:setting:locales',                       // [string]: list of locales in descending preference (comma separated) - default: cfg -> 'en'
+  customer_locales:                   'urn:restorecommerce:customer:setting:locales',                   // [string]: list of locales in descending preference (comma separated) - default: cfg -> 'en'
+  customer_email_cc:                  'urn:restorecommerce:customer:setting:invoide:email:cc',          // [string]: add recipients in CC (comma separated) - default: cfg -> null
+  customer_email_bcc:                 'urn:restorecommerce:customer:setting:invoide:email:bcc',         // [string]: add recipients in BC (comma separated) - default: cfg -> null
 };
 
 export type KnownUrns = typeof DefaultUrns;
-
 export type ProductNature = PhysicalProduct | VirtualProduct | ServiceProduct;
 export type ProductVariant = PhysicalVariant | VirtualVariant | ServiceVariant;
 export type PositionProduct = ProductVariant | Bundle;
@@ -139,24 +137,59 @@ export type AggregationTemplate = {
 
 export type AggregatedInvoiceList = Aggregation<InvoiceList, AggregationTemplate>;
 
-export type KnownSetting = {
-  default_bucket?: string;
-  invoice_number_start?: number;
-  invoice_number_increment?: number;
-  invoice_html_bucket?: string;
-  invoice_pdf_bucket?: string;
-  disable_invoice_html_storage?: string;
-  disable_invoice_pdf_storage?: string;
-  invoice_html_bucket_options?: any;
-  invoice_pdf_bucket_options?: any;
-  invoice_number_pattern?: any;
-  puppeteer_options?: any;
-  email_provider?: string;
-  email_subject_template?: string;
-  email_in_cc?: string[];
-  bucket_key_delimiter?: string;
-  ostorage_domain_prefix?: string;
+const parseList = (value: string) => value?.split(/\s*,\s*/)
+const SettingParser: { [key: string]: (value: string) => any } = {
+  shop_html_bucket_options: JSON.parse,
+  shop_pdf_bucket_options: JSON.parse,
+  shop_pdf_render_options: JSON.parse,
+  shop_puppeteer_options: JSON.parse,
+  shop_email_render_options: JSON.parse,
+  shop_invoice_number_start: Number.parseInt,
+  shop_invoice_number_increment: Number.parseInt,
+  shop_locales: parseList,
+  customer_locales: parseList,
+  shop_email_cc: parseList,
+  shop_email_bcc: parseList,
+  customer_email_cc: parseList,
+  customer_email_bcc: parseList,
 };
+export const parseSetting = (key: string, value: string) => {
+  const parser = SettingParser[key];
+  if (parser) {
+    return parser(value);
+  }
+  else {
+    return value;
+  }
+}
+
+export const DefaultSetting = {
+  shop_default_bucket: 'invoices',
+  shop_html_bucket: undefined as string,
+  shop_html_bucket_options: undefined as any,
+  shop_html_bucket_disabled: false,
+  shop_pdf_bucket: undefined as string,
+  shop_pdf_bucket_options: undefined as any,
+  shop_pdf_bucket_disabled: false,
+  shop_pdf_render_options: undefined as any,
+  shop_pdf_render_strategy: Payload_Strategy.INLINE,
+  shop_puppeteer_options: undefined as any,
+  shop_email_render_options: undefined as any,
+  shop_email_render_strategy: Payload_Strategy.INLINE,
+  shop_email_provider: undefined as string,
+  shop_email_cc: undefined as string[],
+  shop_email_bcc: undefined as string[],
+  shop_invoice_number_start: 0,
+  shop_invoice_number_increment: 1,
+  shop_invoice_number_pattern: 'invoice-%010i',
+  shop_locales: ['en'] as string[],
+  shop_bucket_key_delimiter: '/',
+  shop_bucket_endpoint: 'localhost:5000/storage',
+  customer_locales: ['en'] as string[],
+  customer_email_cc: undefined as string[],
+  customer_email_bcc: undefined as string[],
+};
+export type ResolvedSetting = typeof DefaultSetting;
 
 export type InvoiceNumber = {
   id?: string;

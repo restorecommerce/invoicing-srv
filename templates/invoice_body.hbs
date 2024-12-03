@@ -4,12 +4,12 @@
 
 <table id="invoicemeta" class="vclNoBorder vclFloatRight" style="min-width: 18em;">
   <tr>
-    <td><b>{{t 'l10n.invoice.invoiceNumber'}}</b></td>
+    <td><b>{{t 'l10n.invoice.number'}}</b></td>
     <td class="vclAlignRight">{{invoice.invoice_number}}</td>
   </tr>
   {{#each invoice.references}}
   <tr>
-    <td>{{t 'l10n.invoice.orderNumber'}}</td>
+    <td>{{t 'l10n.invoice.reference.id'}}</td>
     <td class="vclAlignRight">{{id}}</td>
   </tr>
   {{/each}}
@@ -114,19 +114,20 @@
     {{/each}}
 
     {{#each amounts}}
-    {{#each amount.vats}}
-    <tr class="vclNoBorder">
-      <td colspan="3">{{tax.name}}</td>
-      <td colspan="2" class="vclAlignRight">{{nfc vat}} {{amount.currency.symbol}}</td>
-    </tr>
+      {{#each amount.vats}}
+      <tr class="vclNoBorder">
+        <td colspan="3">{{tax.name}}</td>
+        <td colspan="2" class="vclAlignRight">{{nfc vat}} {{amount.currency.symbol}}</td>
+      </tr>
+      {{/each}}
     {{/each}}
 
     {{#if vouchers}}
       {{#each voucherResources}}
-    <tr class="vclNoBorder">
-      <td colspan="3">{{t 'l10n.invoice.voucher'}}: {{code}}</td>
-      <td colspan="2" class="vclAlignRight">({{nfc value}}) {{amount.currency.symbol}}</td>
-    </tr>
+      <tr class="vclNoBorder">
+        <td colspan="3">{{t 'l10n.invoice.voucher'}}: {{code}}</td>
+        <td colspan="2" class="vclAlignRight">({{nfc value}}) {{amount.currency.symbol}}</td>
+      </tr>
       {{/each}}
     {{/if}}
 

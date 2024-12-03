@@ -181,15 +181,31 @@
           ]
         }
       }
-    }
-  },
-  "defaults": {
-    "Shop": {
-      "settings": {
-        "ostorage_domain_prefix": "http://localhost:5000/storage",
-        "default_bucket": "invoices",
-        "disable_invoice_html_storage": "false",
-        "bucket_key_delimiter": "/"
+    },
+    "template": {
+      "address": "localhost:50177",
+      "mock": {
+        "protoPath": "io/restorecommerce/template.proto",
+        "packageName": "io.restorecommerce.template",
+        "serviceName": "TemplateService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
+    },
+    "setting": {
+      "address": "localhost:50178",
+      "mock": {
+        "protoPath": "io/restorecommerce/setting.proto",
+        "packageName": "io.restorecommerce.setting",
+        "serviceName": "SettingService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
       }
     }
   }
