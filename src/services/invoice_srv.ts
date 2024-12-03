@@ -1722,13 +1722,6 @@ export class InvoiceService
           );
         }
 
-        this.logger.error(doc.url,
-          {
-            headers: {
-              Authorization: `Bearer ${subject.token}`
-            }
-          });
-
         return await fetch(
           doc.url,
           {
