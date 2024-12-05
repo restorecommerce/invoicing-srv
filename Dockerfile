@@ -26,7 +26,7 @@ ARG APP_HOME=/home/node/srv
 WORKDIR $APP_HOME
 
 COPY ./queries $APP_HOME/queries
-COPY cfg $APP_HOME/cfg
+COPY ./cfg $APP_HOME/cfg
 
 COPY --from=build $APP_HOME/lib $APP_HOME/lib
 
