@@ -1162,6 +1162,26 @@ export class InvoiceService
         aggregation => this.generateInvoiceNumbers(aggregation, context)
       );
 
+      /*
+      aggregation.items = await super.upsert(
+        {
+          items: aggregation.items,
+          total_count: aggregation.items.length,
+          subject: request.subject
+        },
+        context
+      ).then(
+        response => {
+          if (response.operation_status?.code !== 200) {
+            throw response.operation_status;
+          }
+          return response.items.map(
+            item => item.payload
+          );
+        }
+      );
+      */
+
       const default_templates = await this.loadDefaultTemplates().then(
         df => df.filter(
           template => template.use_case === TemplateUseCase.INVOICE_PDF
@@ -1324,7 +1344,7 @@ export class InvoiceService
         )
       );
       const items = await Promise.all(aggregation.items.map(
-        async (item) => {
+        async (item, i) => {
           const render_id = `invoice/email/${item!.id}`;
           return await this.emitRenderRequest(
             item,
@@ -1355,11 +1375,7 @@ export class InvoiceService
                 body,
                 setting,
                 title,
-                item.documents?.filter(
-                  d => d.content_type === 'application/pdf'
-                ).map(
-                  d => d.id
-                ),
+                request.items[i].document_ids,
                 this.tech_user ?? request.subject,
                 context,
               );

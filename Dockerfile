@@ -25,8 +25,9 @@ USER node
 ARG APP_HOME=/home/node/srv
 WORKDIR $APP_HOME
 
-COPY ./queries $APP_HOME/queries
 COPY ./cfg $APP_HOME/cfg
+COPY ./queries $APP_HOME/queries
+COPY ./templates $APP_HOME/templates
 
 COPY --from=build $APP_HOME/lib $APP_HOME/lib
 
