@@ -26,6 +26,11 @@
   "redis": {
     "url": "redis://redis:6379"
   },
+  "authorization": {
+    "cache": {
+      "url": "redis://redis:6379"
+    }
+  },
   "events": {
     "kafka": {
       "kafka": {
@@ -35,29 +40,85 @@
       }
     }
   },
-  "hbs_templates": {
-    "prefix": "http://restorecommerce-console:8080/"
-  },
   "client": {
-    "services": {
-      "ostorage": {
-        "address": "ostorage-srv:50051"
-      }
-    }
-  },
-  "pdf-rendering": {
-    "url": "http://pdf-rendering-srv:9000/api/render",
-    "options": {
-      "pdf": {
-        "footerTemplateURL": "http://restorecommerce-console:8080/invoicing-srv/templates/footer_template.html",
-        "headerTemplateURL": "http://restorecommerce-console:8080/invoicing-srv/templates/header_template.html"
-      }
+    "acs-srv": {
+      "address": "access-control-srv:50051"
+    },
+    "user": {
+      "fullName": "io.restorecommerce.user.UserService",
+      "address": "identity-srv:50051"
+    },
+    "product": {
+      "fullName": "io.restorecommerce.product.ProductService",
+      "address": "resource-srv:50051"
+    },
+    "manufacturer": {
+      "fullName": "io.restorecommerce.manufacturer.ManufacturerService",
+      "address": "resource-srv:50051"
+    },
+    "address": {
+      "fullName": "io.restorecommerce.address.AddressService",
+      "address": "resource-srv:50051"
+    },
+    "country": {
+      "fullName": "io.restorecommerce.country.CountryService",
+      "address": "resource-srv:50051"
+    },
+    "tax": {
+      "fullName": "io.restorecommerce.tax.TaxService",
+      "address": "resource-srv:50051"
+    },
+    "customer": {
+      "fullName": "io.restorecommerce.customer.CustomerService",
+      "address": "resource-srv:50051"
+    },
+    "shop": {
+      "fullName": "io.restorecommerce.shop.ShopService",
+      "address": "resource-srv:50051"
+    },
+    "organization": {
+      "fullName": "io.restorecommerce.organization.OrganizationService",
+      "address": "resource-srv:50051"
+    },
+    "contact_point": {
+      "fullName": "io.restorecommerce.contact_point.ContactPointService",
+      "address": "resource-srv:50051"
+    },
+    "template": {
+      "fullName": "io.restorecommerce.template.TemplateService",
+      "address": "resource-srv:50051"
+    },
+    "setting": {
+      "fullName": "io.restorecommerce.setting.SettingService",
+      "address": "resource-srv:50051"
+    },
+    "fulfillment_courier": {
+      "fullName": "io.restorecommerce.fulfillment_courierFulfillmentCourierService",
+      "address": "fulfillment-srv:50051",
+      "disabled": false
+    },
+    "fulfillment_product": {
+      "fullName": "io.restorecommerce.fulfillment_product.FulfillmentProductService",
+      "address": "fulfillment-srv:50051",
+      "disabled": false
+    },
+    "ostorage": {
+      "fullName": "io.restorecommerce.ostorage.OstorageService",
+      "address": "ostorage-srv:50066"
+    },
+    "pdf_rendering": {
+      "fullName": "io.restorecommerce.pdf_rendering.PdfRenderingService",
+      "address": "pdf-render-srv:3001"
+    },
+    "notification_req": {
+      "fullName": "io.restorecommerce.notification_req.NotificationReqService",
+      "address": "notification-srv"
     }
   },
   "server": {
     "transports": [
       {
-        "name": "grpcBilling",
+        "name": "grpcInvoicing",
         "provider": "grpc",
         "addr": "0.0.0.0:50051"
       }
