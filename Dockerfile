@@ -1,5 +1,5 @@
 ### Build
-FROM node:22.11.0-alpine3.20 as build
+FROM node:22.11.0-alpine3.20 AS build
 ENV NO_UPDATE_NOTIFIER=true
 
 USER node
@@ -17,7 +17,7 @@ RUN npm run build
 
 
 ### Deployment
-FROM node:22.11.0-alpine3.20 as deployment
+FROM node:22.11.0-alpine3.20 AS deployment
 
 ENV NO_UPDATE_NOTIFIER=true
 
@@ -25,14 +25,11 @@ USER node
 ARG APP_HOME=/home/node/srv
 WORKDIR $APP_HOME
 
-COPY filter_ownership.aql $APP_HOME/filter_ownership.aql
+COPY ./queries $APP_HOME/queries
 COPY cfg $APP_HOME/cfg
 
 COPY --from=build $APP_HOME/lib $APP_HOME/lib
 
 EXPOSE 50051
-
-USER root
-USER node
 
 CMD [ "node", "lib/start.cjs" ]
