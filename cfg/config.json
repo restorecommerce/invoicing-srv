@@ -213,7 +213,7 @@
         "messageObject": "io.restorecommerce.invoice.Invoice"
       },
       "invoiceDeleted": {
-        "messageObject": "io.restorecommerce.invoice.Deleted"
+        "messageObject": "io.restorecommerce.resourcebase.Deleted"
       },
       "invoiceFailed": {
         "messageObject": "io.restorecommerce.invoice.InvoiceResponse"
@@ -267,12 +267,6 @@
       "configUpdateResponse": {
         "messageObject": "io.restorecommerce.commandinterface.CommandResponse"
       },
-      "setApiKeyCommand": {
-        "messageObject": "io.restorecommerce.commandinterface.CommandRequest"
-      },
-      "setApiKeyResponse": {
-        "messageObject": "io.restorecommerce.commandinterface.CommandResponse"
-      },
       "flushCacheCommand": {
         "messageObject": "io.restorecommerce.commandinterface.CommandRequest"
       },
@@ -310,7 +304,6 @@
             "resetCommand": "cis.command",
             "versionCommand": "cis.command",
             "configUpdateCommand": "cis.command",
-            "setApiKeyCommand": "cis.command",
             "flushCacheCommand": "cis.command"
           }
         },
