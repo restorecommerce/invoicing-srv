@@ -1,3 +1,7 @@
+## 1.4.0 (December 5th, 2024)
+
+- new feature: GRPC Interface
+
 ## 1.0.1 (June 2nd, 2023)
 
 - updated dependencies
