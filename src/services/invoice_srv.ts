@@ -127,6 +127,8 @@ import {
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/file.js';
 import { Readable, Transform } from 'node:stream';
 import { InvoiceNumberService } from './invoice_number_srv.js';
+import { ResourceAwaitQueue } from '../experimental/ResourceAwaitQueue.js';
+import { ClientRegister } from '../experimental/ClientRegister.js';
 import {
   DefaultUrns,
   type KnownUrns,
@@ -136,10 +138,8 @@ import {
   DefaultSetting,
   resolveInvoice,
   parseSetting,
+  marshallProtobufAny,
 } from '../utils.js';
-import { ResourceAwaitQueue } from '../experimental/ResourceAwaitQueue.js';
-import { ClientRegister } from '../experimental/ClientRegister.js';
-import { marshallProtobufAny } from '../utils.js';
 
 
 export type ProductNature = PhysicalProduct | VirtualProduct | ServiceProduct;
@@ -1097,7 +1097,7 @@ export class InvoiceService
   @resolves_subject()
   @injects_meta_data()
   @access_controlled_function({
-    action: AuthZAction.CREATE,
+    action: AuthZAction.MODIFY,
     operation: Operation.isAllowed,
     context: InvoiceService.ACSContextFactory,
     resource: DefaultResourceFactory('invoice'),
@@ -1114,7 +1114,7 @@ export class InvoiceService
   @resolves_subject()
   @injects_meta_data()
   @access_controlled_function({
-    action: AuthZAction.CREATE,
+    action: AuthZAction.MODIFY,
     operation: Operation.isAllowed,
     context: InvoiceService.ACSContextFactory,
     resource: DefaultResourceFactory('invoice'),
