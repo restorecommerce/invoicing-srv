@@ -50,11 +50,11 @@
     },
     "product": {
       "fullName": "io.restorecommerce.product.ProductService",
-      "address": "resource-srv:50051"
+      "address": "catalog-srv:50051"
     },
     "manufacturer": {
       "fullName": "io.restorecommerce.manufacturer.ManufacturerService",
-      "address": "resource-srv:50051"
+      "address": "catalog-srv:50051"
     },
     "address": {
       "fullName": "io.restorecommerce.address.AddressService",
@@ -104,11 +104,11 @@
     },
     "ostorage": {
       "fullName": "io.restorecommerce.ostorage.OstorageService",
-      "address": "ostorage-srv:50066"
+      "address": "ostorage-srv:50051"
     },
     "pdf_rendering": {
       "fullName": "io.restorecommerce.pdf_rendering.PdfRenderingService",
-      "address": "pdf-render-srv:3001"
+      "address": "pdf-render-srv:50051"
     },
     "notification_req": {
       "fullName": "io.restorecommerce.notification_req.NotificationReqService",

@@ -2,7 +2,7 @@
   "logger": {
     "console": {
       "handleExceptions": false,
-      "level": "error",
+      "level": "silly",
       "colorize": true,
       "prettyPrint": true
     }
@@ -181,7 +181,7 @@
       "prefix": "acs:"
     },
     "techUser": {
-      "id": "root_tech_user",
+      "id": "root-tech-user",
       "token": "1a4c6789-6435-487a-9308-64d06384acf9"
     }
   },

@@ -131,13 +131,14 @@ export class ResourceAggregator {
     service: CRUDServiceDefinition,
     subject?: Subject,
     context?: CallContext,
+    entity?: string,
   ) {
     ids = [...new Set([ids].flatMap(id => id))];
     const request = ids?.length ? {
       filters: [{
         filters: [
           {
-            field: 'id',
+            field: '_key',
             operation: Filter_Operation.in,
             value: JSON.stringify(ids),
             type: Filter_ValueType.ARRAY,
@@ -149,11 +150,12 @@ export class ResourceAggregator {
     } : undefined;
     const client = this.register.get(service) as any;
     const response = request && await client.read(request, context);
+    this.logger?.silly(`ResourceAggregator ${service?.name?.toString()} response:`, response);
     const map = new ResourceMap<R>(
       response?.items?.map(
         (item: any) => item.payload
       ),
-      service?.name?.toString()
+      entity ?? service?.name?.toString()
     );
     return map;
   }
@@ -181,6 +183,7 @@ export class ResourceAggregator {
           source.service,
           subject,
           context,
+          source.entity,
         )
       )
     );

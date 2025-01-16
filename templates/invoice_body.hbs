@@ -33,7 +33,7 @@
         {{invoice.recipient.business_address.name}}
       {{/if}}
       {{#if invoice.recipient.residential_address}}
-        {{'l10n.invoice.salutation'
+        {{t 'l10n.invoice.salutation'
           title=invoice.recipient.residential_address.title
           familyName=invoice.recipient.residential_address.family_name
           midName=invoice.recipient.residential_address.mid_name
@@ -99,15 +99,14 @@
 
       <td class="vclAlignRight">
       {{#if unit_price.sale}}
-        {{nfc unit_price.regular_price}}
+        {{nfc unit_price.regular_price cc=unit_price.currency.symbol}}
       {{else}}
-        {{nfc unit_price.sale_price}}
+        {{nfc unit_price.sale_price cc=unit_price.currency.symbol}}
       {{/if}}
-      {{amount.currency.symbol}}
       </td>
 
       <td class="vclAlignRight">
-        {{nfc amount.net}} {{amount.currency.symbol}}
+        {{nfc amount.net cc=amount.currency.symbol}}
       </td>
 
     </tr>
@@ -117,7 +116,7 @@
       {{#each amount.vats}}
       <tr class="vclNoBorder">
         <td colspan="3">{{tax.name}}</td>
-        <td colspan="2" class="vclAlignRight">{{nfc vat}} {{amount.currency.symbol}}</td>
+        <td colspan="2" class="vclAlignRight">{{nfc vat cc=total_amount.currency.symbol}}</td>
       </tr>
       {{/each}}
     {{/each}}
@@ -126,7 +125,7 @@
       {{#each voucherResources}}
       <tr class="vclNoBorder">
         <td colspan="3">{{t 'l10n.invoice.voucher'}}: {{code}}</td>
-        <td colspan="2" class="vclAlignRight">({{nfc value}}) {{amount.currency.symbol}}</td>
+        <td colspan="2" class="vclAlignRight">{{nfc value cc=total_amount.currency.symbol}}</td>
       </tr>
       {{/each}}
     {{/if}}
@@ -134,13 +133,13 @@
     {{#if discount}}
     <tr class="vclNoBorder">
       <td colspan="3">{{t 'l10n.invoice.discount'}}</td>
-      <td colspan="2" class="vclAlignRight">{{nfc discount}} {{cs}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc discount cc=total_amount.currency.symbol}}</td>
     </tr>
     {{/if}}
 
     <tr class="vclSumTableTotal">
       <td colspan="3">{{t 'l10n.invoice.totalAmount'}}</td>
-      <td colspan="2" class="vclAlignRight">{{nfc total}} {{cs}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc total_amount.net cc=total_amount.currency.symbol}}</td>
     </tr>
   </tbody>
 </table>
@@ -149,7 +148,7 @@
 <br>
 
 <p class="vclAlignCentered">
-  {{{t 'l10n.invoice.footer.title' shopName=shop.name}}}
+  {{{t 'l10n.invoice.footer.title' shopName=invoice.shop.name}}}
   <br>
   <br>
   <img src={{t 'l10n.invoice.logo.url'}}/>
@@ -161,7 +160,7 @@
     postcode=legal_address.postcode
     locality=legal_address.locality
     country=legal_address.country.name
-    vatID=shop.organization.vat_id
+    vatID=invoice.shop.organization.vat_id
   }}
 </p>
 

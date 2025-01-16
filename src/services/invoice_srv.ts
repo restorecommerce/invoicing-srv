@@ -206,6 +206,10 @@ export class InvoiceService
       code: 500,
       message: '{entity} {id}: {error}!',
     },
+    PDF_RENDER_FAILED: {
+      code: 500,
+      message: '{entity} {id}: PDF-Rendering failed!',
+    },
   };
 
   protected readonly operation_status_codes = {
@@ -236,7 +240,6 @@ export class InvoiceService
   protected readonly pdf_rendering_service: Client<PdfRenderingServiceDefinition>;
   protected readonly notification_service: Client<NotificationReqServiceDefinition>;
   protected readonly ostorage_service: Client<ObjectServiceDefinition>;
-  protected readonly user_service: Client<UserServiceDefinition>;
   protected readonly default_setting: ResolvedSetting;
   protected readonly default_templates: Template[] = [];
   protected readonly urns: KnownUrns;
@@ -308,8 +311,6 @@ export class InvoiceService
       ObjectServiceDefinition,
       createChannel(cfg.get('client:ostorage:address')),
     );
-
-    this.user_service = client_register.get(UserServiceDefinition);
 
     this.urns = {
       ...DefaultUrns,
@@ -759,8 +760,9 @@ export class InvoiceService
         [
           {
             service: UserServiceDefinition,
-            map_by_ids: (aggregation) => aggregation.customers?.all.map(
-              customer => customer.private?.user_id
+            map_by_ids: (aggregation) => [].concat(
+              aggregation.items?.map(item => item.user_id),
+              aggregation.customers?.all.map(customer => customer.private?.user_id)
             ).filter(i => i),
             container: 'users',
             entity: 'User',
@@ -882,7 +884,7 @@ export class InvoiceService
       await this.aggregator.getByIds(
         ids,
         TemplateServiceDefinition,
-        subject ?? this.tech_user,
+        this.tech_user ?? subject,
         context,
       ).then(
         resp_map => {
@@ -1143,6 +1145,13 @@ export class InvoiceService
     context?: CallContext,
   ): Promise<InvoiceListResponse> {
     try {
+      if (!request.items?.length) {
+        return {
+          items: [],
+          operation_status: this.operation_status_codes.SUCCESS,
+        }
+      }
+
       const response_map = new Map<string, InvoiceResponse>(
         request.items.map(
           item => [
@@ -1233,7 +1242,12 @@ export class InvoiceService
                 );
               }
               else {
-                response_map.get(item.id).status = response.status;
+                response_map.get(item.id).status = response.status ?? this.createStatusCode(
+                  item.id,
+                  'Invoice',
+                  this.status_codes.PDF_RENDER_FAILED,
+                  item.id
+                );
                 return undefined;
               }
             }
@@ -1246,14 +1260,14 @@ export class InvoiceService
           item => item.payload
         )
       ).then(
-        items => super.upsert(
+        items => items.length ? super.upsert(
           {
             items,
             total_count: items.length,
             subject: request.subject
           },
           context
-        )
+        ) : undefined
       ).then(
         response => {
           if (response.operation_status?.code !== 200) {
@@ -1311,7 +1325,13 @@ export class InvoiceService
     context?: CallContext,
   ): Promise<StatusListResponse> {
     try {
-      const ids = request.items!.map(item => item.id);
+      if (!request.items?.length) {
+        return {
+          status: [],
+          operation_status: this.operation_status_codes.SUCCESS,
+        }
+      }
+      const ids = request.items.map(item => item.id);
       const aggregation = await this.get(
         ids,
         request.subject,
@@ -1354,7 +1374,7 @@ export class InvoiceService
             default_templates,
             request.subject,
           ).then(
-            () => this.awaits_render_result.await(render_id, 1000)
+            () => this.awaits_render_result.await(render_id, this.kafka_timeout)
           ).then(
             async (bodies) => {
               const shop = aggregation.shops.get(item.shop_id);
@@ -1388,7 +1408,7 @@ export class InvoiceService
         items,
         subject: request.subject
       }, context);
-      const status = response.items.map(item => item.status);
+      const status = response.items?.map(item => item.status);
 
       return {
         status,
@@ -1494,7 +1514,7 @@ export class InvoiceService
               id: document_id,
               url: [
                 setting.shop_bucket_endpoint,
-                obj.url.replace('//', ''),
+                obj.url.replace(/^\/\//, ''),
               ].join('/'),
               caption: filename,
               filename,
@@ -1576,7 +1596,7 @@ export class InvoiceService
               id: document_id,
               url: [
                 setting.shop_bucket_endpoint,
-                obj.url.replace('//', ''),
+                obj.url.replace(/^\/\//, ''),
               ].join('/'),
               caption: filename,
               filename,
@@ -1823,14 +1843,14 @@ export class InvoiceService
         this.awaits_render_result.reject(response.id, status);
       }
       else {
-        const bodies = content.flatMap(
-          c => Object.values(c)
+        const bodies = content.map(
+          (c, i) => c[i]
         ) as string[];
         this.awaits_render_result.resolve(response.id, bodies);
       }
     }
     catch (e: any) {
-      this.logger.error('Error on handleRenderResponse:', e);
+      this.logger?.error('Error on handleRenderResponse:', e);
     }
   }
 }

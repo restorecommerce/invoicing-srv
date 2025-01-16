@@ -2,7 +2,7 @@ import {
   ResourcesAPIBase,
   ServiceBase
 } from '@restorecommerce/resource-base-interface';
-import { type ServiceConfig } from '../experimental/WorkerBase.js';
+import { type ServiceConfig } from '@restorecommerce/service-config';
 import { type Logger } from '@restorecommerce/logger';
 import { type DatabaseProvider } from '@restorecommerce/chassis-srv';
 import { Topic } from '@restorecommerce/kafka-client';
