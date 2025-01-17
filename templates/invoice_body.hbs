@@ -67,7 +67,7 @@
 
 <br>
 
-{{#each invoice.sections}}
+{{#each invoice.sections as | section |}}
 <table id="items" class="vclTable vclSumTable">
   <thead>
     <tr>
@@ -79,68 +79,24 @@
     </tr>
   </thead>
   <tbody>
-    {{#each positions}}
+    {{#each section.positions as | position |}}
     <tr>
       <td>{{id}}</td>
       
-      {{#if product_item}}
-        <td>{{product.name}}</td>
+      {{#if position.product_item.product}}
+        <td>{{position.product_item.product.name}}</td>
       {{/if}}
       
-      {{#if fulfillment_item}}
+      {{#if position.product_item.fulfillment_item}}
         <td>{{fulfillment_product.name}}</td>
       {{/if}}
       
-      {{#if manual_item}}
-        <td>{{name}}</td>
+      {{#if position.product_item.manual_item}}
+        <td>{{position.product_item.manual_item.name}}</td>
       {{/if}}
       
-      <td>{{quantity}}</td>
+      <td>{{position.product_item.quantity}}</td>
 
-      <td class="vclAlignRight">
-      {{#if unit_price.sale}}
-        {{nfc unit_price.regular_price cc=unit_price.currency.symbol}}
-      {{else}}
-        {{nfc unit_price.sale_price cc=unit_price.currency.symbol}}
-      {{/if}}
-      </td>
-
-      <td class="vclAlignRight">
-        {{nfc amount.net cc=amount.currency.symbol}}
-      </td>
-
-    </tr>
-    {{/each}}
-
-    {{#each amounts}}
-      {{#each amount.vats}}
-      <tr class="vclNoBorder">
-        <td colspan="3">{{tax.name}}</td>
-        <td colspan="2" class="vclAlignRight">{{nfc vat cc=currency.symbol}}</td>
-      </tr>
-      {{/each}}
-    {{/each}}
-
-    {{#if vouchers}}
-      {{#each voucherResources}}
-      <tr class="vclNoBorder">
-        <td colspan="3">{{t 'l10n.invoice.voucher'}}: {{code}}</td>
-        <td colspan="2" class="vclAlignRight">{{nfc value cc=currency.symbol}}</td>
-      </tr>
-      {{/each}}
-    {{/if}}
-
-    {{#if discount}}
-    <tr class="vclNoBorder">
-      <td colspan="3">{{t 'l10n.invoice.discount'}}</td>
-      <td colspan="2" class="vclAlignRight">{{nfc discount cc=currency.symbol}}</td>
-    </tr>
-    {{/if}}
-
-    {{#each amounts}}
-    <tr class="vclSumTableTotal">
-      <td colspan="3">{{t 'l10n.invoice.totalAmount'}}</td>
-      <td colspan="2" class="vclAlignRight">{{nfc net cc=currency.symbol}}</td>
     </tr>
     {{/each}}
   </tbody>
