@@ -10,7 +10,7 @@
   {{#each invoice.references}}
   <tr>
     <td>{{t 'l10n.invoice.reference.id'}}</td>
-    <td class="vclAlignRight">{{id}}</td>
+    <td class="vclAlignRight">{{instance_id}}</td>
   </tr>
   {{/each}}
   <tr>
@@ -44,11 +44,11 @@
     </tr>
     <tr>
       <td> </td>
-      <td>{{invoice.recipient.street}}</td>
+      <td>{{invoice.recipient.address.street}}</td>
     </tr>
     <tr>
       <td> </td>
-      <td>{{invoice.recipient.postcode}} {{invoice.recipient.locality}}</td>
+      <td>{{invoice.recipient.address.postcode}} {{invoice.recipient.address.locality}}</td>
     </tr>
     <tr>
       <td> </td>
@@ -116,7 +116,7 @@
       {{#each amount.vats}}
       <tr class="vclNoBorder">
         <td colspan="3">{{tax.name}}</td>
-        <td colspan="2" class="vclAlignRight">{{nfc vat cc=total_amount.currency.symbol}}</td>
+        <td colspan="2" class="vclAlignRight">{{nfc vat cc=currency.symbol}}</td>
       </tr>
       {{/each}}
     {{/each}}
@@ -125,7 +125,7 @@
       {{#each voucherResources}}
       <tr class="vclNoBorder">
         <td colspan="3">{{t 'l10n.invoice.voucher'}}: {{code}}</td>
-        <td colspan="2" class="vclAlignRight">{{nfc value cc=total_amount.currency.symbol}}</td>
+        <td colspan="2" class="vclAlignRight">{{nfc value cc=currency.symbol}}</td>
       </tr>
       {{/each}}
     {{/if}}
@@ -133,14 +133,16 @@
     {{#if discount}}
     <tr class="vclNoBorder">
       <td colspan="3">{{t 'l10n.invoice.discount'}}</td>
-      <td colspan="2" class="vclAlignRight">{{nfc discount cc=total_amount.currency.symbol}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc discount cc=currency.symbol}}</td>
     </tr>
     {{/if}}
 
+    {{#each amounts}}
     <tr class="vclSumTableTotal">
       <td colspan="3">{{t 'l10n.invoice.totalAmount'}}</td>
-      <td colspan="2" class="vclAlignRight">{{nfc total_amount.net cc=total_amount.currency.symbol}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc net cc=currency.symbol}}</td>
     </tr>
+    {{/each}}
   </tbody>
 </table>
 {{/each}}
@@ -155,12 +157,12 @@
   <br>
   <br>
   {{t 'l10n.invoice.footer.text'
-    name=legal_address.business_address.name
-    street=legal_address.street
-    postcode=legal_address.postcode
-    locality=legal_address.locality
-    country=legal_address.country.name
-    vatID=invoice.shop.organization.vat_id
+    name=invoice.sender.business_address.name
+    street=invoice.sender.street
+    postcode=invoice.sender.postcode
+    locality=invoice.sender.locality
+    country=invoice.sender.country.name
+    vatID=invoice.sender.organization.vat_id
   }}
 </p>
 

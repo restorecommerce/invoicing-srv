@@ -385,6 +385,11 @@
       "message": "Query limit 1000 for {entity} exhausted!"
     }
   },
+  "contactPointTypeIds": {
+    "legal": "legal",
+    "shipping": "shipping",
+    "billing": "billing"
+  },
   "default": {
     "Setting": {
       "shop_default_bucket": "invoices",

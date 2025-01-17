@@ -252,6 +252,11 @@ export class InvoiceService
     WITHDRAWN: 'invoiceWithdrawn',
     CANCELLED: 'invoiceCancelled'
   };
+  protected readonly contact_point_type_ids = {
+    legal: 'legal',
+    billing: 'billing',
+    shipping: 'shipping',
+  }
 
   constructor(
     protected readonly invoicingTopic: Topic,
@@ -325,6 +330,10 @@ export class InvoiceService
       ...this.emitters,
       ...cfg.get('events:emitters'),
     };
+    this.contact_point_type_ids = {
+      ...this.contact_point_type_ids,
+      ...cfg.get('contactPointTypeIds'),
+    }
 
     this.tech_user = cfg.get('authorization:techUser');
     this.kafka_timeout = cfg.get('kafka:timeout') ?? 5000;
@@ -853,6 +862,68 @@ export class InvoiceService
         subject,
         context,
       )
+    ).then(
+      a => {
+        a.items?.forEach(
+          item => {
+            if (!item.sender) {
+              const contact_point = a.contact_points?.getMany(
+                a.organizations?.get(
+                  a.shops?.get(
+                    item.shop_id
+                  )?.organization_id
+                )?.contact_point_ids
+              )?.find(
+                cp => cp.contact_point_type_ids?.includes(
+                  this.contact_point_type_ids.billing
+                )
+              );
+              const address = a.addresses?.get(
+                contact_point?.id
+              );
+              item.sender = {
+                address,
+                contact: {
+                  email: contact_point.email,
+                  name: contact_point.name,
+                  phone: contact_point.telephone,
+                }
+              };
+            }
+
+            if (!item.recipient) {
+              const customer = a.customers?.get(
+                item.customer_id
+              );
+              const contact_point = a.contact_points?.getMany(
+                [].concat(
+                  a.organizations?.get(
+                    customer?.commercial?.organization_id
+                    ?? customer?.public_sector?.organization_id
+                  )?.contact_point_ids,
+                  customer?.private?.contact_point_ids
+                ).filter(c => c)
+              )?.find(
+                cp => cp.contact_point_type_ids?.includes(
+                  this.contact_point_type_ids.billing
+                )
+              );
+              const address = a.addresses?.get(
+                contact_point?.id
+              );
+              item.recipient = {
+                address,
+                contact: {
+                  email: contact_point.email,
+                  name: contact_point.name,
+                  phone: contact_point.telephone,
+                }
+              };
+            }
+          }
+        );
+        return a;
+      }
     );
     return aggregation;
   }
