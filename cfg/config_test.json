@@ -207,6 +207,19 @@
           ]
         }
       }
+    },
+    "currency": {
+      "address": "localhost:50179",
+      "mock": {
+        "protoPath": "io/restorecommerce/currency.proto",
+        "packageName": "io.restorecommerce.currency",
+        "serviceName": "CurrencyService",
+        "protoLoadOptions": {
+          "includeDirs": [
+            "node_modules/@restorecommerce/protos/"
+          ]
+        }
+      }
     }
   }
 }
