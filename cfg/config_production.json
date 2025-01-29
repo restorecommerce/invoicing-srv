@@ -92,6 +92,10 @@
       "fullName": "io.restorecommerce.setting.SettingService",
       "address": "resource-srv:50051"
     },
+    "currency": {
+      "fullName": "io.restorecommerce.currency.CurrencyService",
+      "address": "resource-srv:50051"
+    },
     "fulfillment_courier": {
       "fullName": "io.restorecommerce.fulfillment_courierFulfillmentCourierService",
       "address": "fulfillment-srv:50051",

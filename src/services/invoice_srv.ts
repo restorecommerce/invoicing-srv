@@ -136,9 +136,9 @@ import {
   type AggregatedInvoiceList,
   type ResolvedSetting,
   DefaultSetting,
-  resolveInvoice,
   parseSetting,
   marshallProtobufAny,
+  packRenderData,
 } from '../utils.js';
 
 
@@ -442,7 +442,7 @@ export class InvoiceService
     };
   }
 
-  protected async resolveProductBundles(
+  protected async aggregateProductBundles(
     products: ResourceMap<Product>,
     output?: ResourceMap<Product>,
   ): Promise<ResourceMap<Product>> {
@@ -465,7 +465,7 @@ export class InvoiceService
         p => output.set(p.id, p)
       );
 
-      await this.resolveProductBundles(
+      await this.aggregateProductBundles(
         bundled_products,
         output,
       );
@@ -758,7 +758,7 @@ export class InvoiceService
       context,
     ).then(
       async aggregation => {
-        aggregation.products = await this.resolveProductBundles(
+        aggregation.products = await this.aggregateProductBundles(
           aggregation.products
         );
         return aggregation;
@@ -928,22 +928,6 @@ export class InvoiceService
     return aggregation;
   }
 
-  protected packRenderData (
-    aggregation: AggregatedInvoiceList,
-    invoice: Invoice,
-  ) {
-    const resolved = {
-      invoice: resolveInvoice(
-        aggregation,
-        invoice
-      ),
-      statics: {},
-      l10n: {},
-    };
-    const buffer = marshallProtobufAny(resolved);
-    return buffer;
-  }
-
   protected async loadDefaultTemplates(subject?: Subject, context?: CallContext) {
     if(this.default_templates.length) {
       return this.default_templates;
@@ -962,7 +946,7 @@ export class InvoiceService
           this.default_templates.forEach(
             template => Object.assign(
               template,
-              resp_map.get(template.id, null) // null for ignore missing
+              resp_map.get(template.id, null)
             )
           )
         }
@@ -1108,7 +1092,7 @@ export class InvoiceService
     const payloads: Payload[] = templates.map(
       (template, i) => ({
         content_type: 'text/html',
-        data: this.packRenderData(
+        data: packRenderData(
           aggregation,
           item,
         ),

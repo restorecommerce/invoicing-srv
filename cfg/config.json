@@ -101,6 +101,10 @@
       "fullName": "io.restorecommerce.setting.SettingService",
       "address": "localhost:50053"
     },
+    "currency": {
+      "fullName": "io.restorecommerce.currency.CurrencyService",
+      "address": "localhost:50053"
+    },
     "fulfillment_courier": {
       "fullName": "io.restorecommerce.fulfillment_courierFulfillmentCourierService",
       "address": "localhost:50067",

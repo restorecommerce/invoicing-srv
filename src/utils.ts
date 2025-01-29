@@ -69,14 +69,18 @@ import {
   Setting,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/setting.js';
 import {
+  Any
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/google/protobuf/any.js';
+import {
+  Payload_Strategy
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/rendering.js';
+import {
   type Aggregation,
   resolve,
   Resolver,
   ArrayResolver,
   ResourceMap,
 } from './experimental/ResourceAggregator.js';
-import { Any } from '@restorecommerce/rc-grpc-clients/dist/generated-server/google/protobuf/any.js';
-import { Payload_Strategy } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/rendering.js';
 
 export const DefaultUrns = {
   shop_default_bucket:                'urn:restorecommerce:shop:setting:invoice:bucket:default',        // [string]: overrides default bucket for file storage - default: cfg -> 'invoice'
@@ -143,13 +147,13 @@ const SettingParser: { [key: string]: (value: string) => any } = {
   shop_pdf_bucket_options: JSON.parse,
   shop_pdf_render_options: JSON.parse,
   shop_puppeteer_options: JSON.parse,
-  shop_email_render_options: JSON.parse,
   shop_invoice_number_start: Number.parseInt,
   shop_invoice_number_increment: Number.parseInt,
+  shop_email_render_options: JSON.parse,
   shop_locales: parseList,
-  customer_locales: parseList,
   shop_email_cc: parseList,
   shop_email_bcc: parseList,
+  customer_locales: parseList,
   customer_email_cc: parseList,
   customer_email_bcc: parseList,
 };
@@ -198,8 +202,15 @@ export type InvoiceNumber = {
   invoice_number?: string;
 };
 
-const mergeProductVariantRecursive = (nature: ProductNature, variant_id: string): ProductVariant => {
-  const variant = nature?.variants?.find(v => v.id === variant_id);
+const mergeProductVariantRecursive = (
+  nature: ProductNature,
+  variant_id: string
+): ProductVariant => {
+  const variant = nature?.templates?.find(
+    v => v.id === variant_id
+  ) ?? nature?.variants?.find(
+    v => v.id === variant_id
+  );
   if (variant?.parent_variant_id) {
     const template = mergeProductVariantRecursive(
       nature, variant.parent_variant_id
@@ -214,12 +225,20 @@ const mergeProductVariantRecursive = (nature: ProductNature, variant_id: string)
   }
 };
 
-const mergeProductVariant = (product: IndividualProduct, variant_id: string): ProductVariant => {
-  const nature = product.physical ?? product.virtual ?? product.service;
+const mergeProductVariant = (
+  product: IndividualProduct,
+  variant_id: string
+): IndividualProduct => {
+  const key = Object.keys(product).find(
+    key => ['physical', 'virtual', 'service'].includes(key)
+  ) as 'physical' | 'virtual' | 'service';
+  const nature = product[key];
   const variant = mergeProductVariantRecursive(nature, variant_id);
   return {
     ...product,
-    ...variant
+    [key]: {
+      variants: [variant]
+    }
   }
 };
 
@@ -284,12 +303,12 @@ export const resolveInvoice = (
   const tax_resolver = Resolver('tax_id', aggregation.taxes, {
     type: Resolver('type_id', aggregation.tax_types),
   });
-  const amount_resolver = [{
+  const amount_resolver = {
     currency: currency_resolver,
     vats: [{
       tax: tax_resolver
     }]
-  }];
+  };
   const fulfillment_product_resolver = {
     product: Resolver(
       'product_id',
@@ -309,7 +328,7 @@ export const resolveInvoice = (
         currency: currency_resolver,
       }
     }],
-    amounts: amount_resolver,
+    amounts: [amount_resolver],
   }];
 
   const resolved = resolve(
@@ -335,10 +354,13 @@ export const resolveInvoice = (
       (position: typeof section.positions[0]) => {
         const product = position.product_item?.product;
         if (product?.product) {
-          product.product = mergeProductVariant(
-            product.product,
-            position.product_item.variant_id
-          );
+          position.product_item.product = {
+            ...product,
+            product: mergeProductVariant(
+              product.product,
+              position.product_item.variant_id
+            )
+          };
         }
       }
     )
@@ -361,3 +383,17 @@ export const marshallProtobufAny = (
 export const unmarshallProtobufAny = (payload: Any): any => JSON.parse(
   payload.value!.toString()
 );
+
+export const packRenderData = (
+  aggregation: AggregatedInvoiceList,
+  invoice: Invoice,
+) => {
+  const resolved = {
+    invoice: resolveInvoice(
+      aggregation,
+      invoice
+    ),
+  };
+  const buffer = marshallProtobufAny(resolved);
+  return buffer;
+};

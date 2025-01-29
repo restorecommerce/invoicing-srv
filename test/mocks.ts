@@ -76,11 +76,22 @@ import {
   FulfillmentProductListResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/fulfillment_product.js';
 import {
+  CurrencyListResponse
+} from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/currency.js';
+import {
+  Status
+} from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/status.js';
+import {
   getRedisInstance,
   logger
 } from './utils.js';
 
 type Address = ShippingAddress & BillingAddress;
+
+const status: Status = {
+  code: 200,
+  message: 'OK',
+}
 
 const mainMeta = {
   modifiedBy: 'SYSTEM',
@@ -173,6 +184,21 @@ const countries: CountryResponse[] = [{
     message: 'OK',
   }
 }];
+
+const currencies: CurrencyListResponse = {
+  items: [{
+    payload: {
+      id: 'euro',
+      countryIds: ['germany'],
+      name: 'Euro',
+      precision: 2,
+      symbol: '€',
+      meta: mainMeta,
+    },
+    status,
+  }],
+  operationStatus,
+};
 
 const taxes: TaxResponse[] = [
   {
@@ -283,11 +309,7 @@ const products: ProductResponse[] = [
         }
       },
     },
-    status: {
-      id: 'physicalProduct_1',
-      code: 200,
-      message: 'OK',
-    }
+    status
   },
 ];
 
@@ -307,11 +329,7 @@ const contactPoints: ContactPointResponse[] = [
       timezoneId: 'timezone_1',
       website: 'www.shop.com',
     },
-    status: {
-      id: 'contactPoint_1',
-      code: 200,
-      message: 'OK',
-    }
+    status
   }
 ];
 
@@ -324,11 +342,7 @@ const organizations = [
       ],
       paymentMethodIds: [],
     },
-    status: {
-      id: 'organization_1',
-      code: 200,
-      message: 'OK',
-    },
+    status,
   }
 ] as OrganizationResponse[];
 
@@ -342,11 +356,7 @@ const shops = [
       organizationId: organizations[0].payload?.id,
       shopNumber: '0000000001',
     },
-    status: {
-      id: 'shop_1',
-      code: 200,
-      message: 'OK',
-    }
+    status,
   }
 ] as ShopResponse[];
 
@@ -431,11 +441,7 @@ const users: { [key: string]: UserResponse } = {
       ],
       meta: mainMeta,
     },
-    status: {
-      id: 'root_tech_user',
-      code: 200,
-      message: 'OK',
-    }
+    status,
   },
   admin: {
     payload: {
@@ -475,11 +481,7 @@ const users: { [key: string]: UserResponse } = {
       ],
       meta: mainMeta,
     },
-    status: {
-      id: 'admin',
-      code: 200,
-      message: 'OK',
-    }
+    status,
   },
   user_1: {
     payload: {
@@ -519,11 +521,7 @@ const users: { [key: string]: UserResponse } = {
       ],
       meta: mainMeta,
     },
-    status: {
-      id: 'user_1',
-      code: 200,
-      message: 'OK',
-    }
+    status,
   },
 };
 
@@ -652,10 +650,7 @@ const fulfillmentCouriers: FulfillmentCourierListResponse = {
           ]
         }
       },
-      status: {
-        code: 200,
-        message: 'Mocked!'
-      }
+      status,
     },
     {
       payload: {
@@ -687,10 +682,7 @@ const fulfillmentCouriers: FulfillmentCourierListResponse = {
           ]
         }
       },
-      status: {
-        code: 200,
-        message: 'Mocked!'
-      }
+      status,
     }
   ],
   totalCount: 2,
@@ -724,10 +716,7 @@ const templates: TemplateListResponse = {
           }
         ],
       },
-      status: {
-        code: 200,
-        message: 'Mocked!'
-      }
+      status,
     }
   ],
   totalCount: 1,
@@ -815,10 +804,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           }]
         }
       },
-      status: {
-        code: 200,
-        message: 'Mocked!'
-      }
+      status,
     },{
       payload: {
         id: 'dhl-1-europe',
@@ -1115,11 +1101,7 @@ export const rules: { [key: string]: any } = {
               ],
             },
           },
-          status: {
-            id: 'customer_1',
-            code: 200,
-            message: 'OK',
-          }
+          status,
         }
       ],
       totalCount: 1,
@@ -1146,11 +1128,7 @@ export const rules: { [key: string]: any } = {
         ...businessAddresses,
       ].map(item => ({
         payload: item.address,
-        status: {
-          id: item.address?.id,
-          code: 200,
-          message: 'OK',
-        }
+        status,
       })),
       totalCount: residentialAddresses.length + businessAddresses.length,
       operationStatus,
@@ -1208,11 +1186,7 @@ export const rules: { [key: string]: any } = {
             type: 'MwSt.',
             description: 'Standard Mehrwert Steuer',
           },
-          status: {
-            id: 'taxType_1',
-            code: 200,
-            message: 'OK',
-          }
+          status,
         }
       ],
       totalCount: 1,
@@ -1242,5 +1216,11 @@ export const rules: { [key: string]: any } = {
       call: any,
       callback: (error: any, response: FulfillmentProductListResponse) => void,
     ) => callback(null, fulfillmentProducts),
+  },
+  currency: {
+    read: (
+      call: any,
+      callback: (error: any, response: CurrencyListResponse) => void,
+    )=> callback(null, currencies),
   },
 };
