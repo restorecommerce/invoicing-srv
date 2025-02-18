@@ -132,7 +132,7 @@ import { ClientRegister } from '../experimental/ClientRegister.js';
 import {
   DefaultUrns,
   type KnownUrns,
-  type AggregationTemplate,
+  type InvoiceAggregationTemplate,
   type AggregatedInvoiceList,
   type ResolvedSetting,
   DefaultSetting,
@@ -556,20 +556,19 @@ export class InvoiceService
               },
               context
             ).then(
-              resp => {
-                const current = resp.items?.pop()?.payload.counter;
-                return current !== undefined ? current + 1 : undefined;
+              async resp => {
+                let current = resp.items?.pop()?.payload.counter;
+                if (Number.isInteger(current)) {
+                  current += 1;
+                }
+                else {
+                  current = setting?.shop_invoice_number_start ?? 0;
+                }
+                await this.redis.set(key, current);
+                return current;
               }
             );
           }
-        }
-      ).then(
-        async current => {
-          if (current === undefined) {
-            current = setting?.shop_invoice_number_start ?? 0;
-            await this.redis.set(key, current);
-          }
-          return current;
         }
       );
 
@@ -582,7 +581,7 @@ export class InvoiceService
       shop => this.redis.get(`invoice:counter:${shop.id}`).then(
         (counter: any) => ({
           id: shop.id,
-          counter: counter as number
+          counter: Number.parseInt(counter.toString())
         })
       )
     )).then(
@@ -753,7 +752,7 @@ export class InvoiceService
           entity: 'FulfillmentProduct',
         },
       ],
-      {} as AggregationTemplate,
+      {} as InvoiceAggregationTemplate,
       subject,
       context,
     ).then(
@@ -770,6 +769,7 @@ export class InvoiceService
           {
             service: UserServiceDefinition,
             map_by_ids: (aggregation) => [].concat(
+              subject?.id,
               aggregation.items?.map(item => item.user_id),
               aggregation.customers?.all.map(customer => customer.private?.user_id)
             ).filter(i => i),
@@ -836,7 +836,7 @@ export class InvoiceService
             entity: 'Setting',
           },
         ],
-        {} as AggregationTemplate,
+        {} as InvoiceAggregationTemplate,
         subject,
         context,
       )
@@ -858,7 +858,7 @@ export class InvoiceService
             entity: 'ContactPoint',
           },
         ],
-        {} as AggregationTemplate,
+        {} as InvoiceAggregationTemplate,
         subject,
         context,
       )
@@ -920,6 +920,8 @@ export class InvoiceService
                 }
               };
             }
+
+            item.user_id ??= subject?.id;
           }
         );
         return a;

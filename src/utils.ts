@@ -117,7 +117,7 @@ export type AggregatedPosition = Position & {
   product: PositionProduct;
 };
 
-export type AggregationTemplate = {
+export type InvoiceAggregationTemplate = {
   shops?: ResourceMap<Shop>;
   customers?: ResourceMap<Customer>;
   organizations?: ResourceMap<Organization>;
@@ -139,7 +139,7 @@ export type AggregationTemplate = {
   settings?: ResourceMap<Setting>;
 };
 
-export type AggregatedInvoiceList = Aggregation<InvoiceList, AggregationTemplate>;
+export type AggregatedInvoiceList = Aggregation<InvoiceList, InvoiceAggregationTemplate>;
 
 const parseList = (value: string) => value?.split(/\s*,\s*/)
 const SettingParser: { [key: string]: (value: string) => any } = {

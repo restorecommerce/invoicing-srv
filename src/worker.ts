@@ -1,4 +1,3 @@
-import { type RedisClientType, createClient } from 'redis';
 import { registerProtoMeta } from '@restorecommerce/kafka-client';
 import {
   InvoiceServiceDefinition,
@@ -24,11 +23,6 @@ registerProtoMeta(
 
 export class Worker extends WorkerBase {
   protected async initServices(): Promise<ServiceBindConfig<any>[]> {
-    const redisConfig = this.cfg.get('redis');
-    redisConfig.db = this.cfg.get('redis:db-indexes:db-invoiceCounter');
-    const redisClient: RedisClientType = createClient(redisConfig);
-    await redisClient.connect();
-
     const serviceBindConfigs: ServiceBindConfig<any>[] = [
       {
         name: this.cfg.get('serviceNames:invoicing'),
@@ -38,7 +32,7 @@ export class Worker extends WorkerBase {
           this.topics.get('rendering'),
           this.topics.get('notificationReq'),
           this.db,
-          redisClient,
+          this.redisClients.get('db-invoiceCounter'),
           this.cfg,
           this.logger,
         ),
