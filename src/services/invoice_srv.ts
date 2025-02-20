@@ -581,18 +581,22 @@ export class InvoiceService
       shop => this.redis.get(`invoice:counter:${shop.id}`).then(
         (counter: any) => ({
           id: shop.id,
-          counter: Number.parseInt(counter.toString())
+          counter: Number(counter)
         })
       )
     )).then(
       counters => {
         this.invoice_number_srv.upsert(
           {
-            items: counters.map(item => ({
-              id: item.id,
-              shop_id: item.id,
-              counter: item.counter,
-            })),
+            items: counters.filter(
+              item => Number.isInteger(item.counter)
+            ).map(
+              item => ({
+                id: item.id,
+                shop_id: item.id,
+                counter: item.counter,
+              })
+            ),
             total_count: counters.length,
             subject: aggregation.subject
           },
