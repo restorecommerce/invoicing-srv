@@ -208,7 +208,7 @@
           "localhost:29092"
         ]
       },
-      "timeout": 5000,
+      "timeout": 15000,
       "latestOffset": false,
       "invoiceCreated": {
         "messageObject": "io.restorecommerce.invoice.Invoice"

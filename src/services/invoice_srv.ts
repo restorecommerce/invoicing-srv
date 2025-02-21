@@ -336,7 +336,7 @@ export class InvoiceService
     }
 
     this.tech_user = cfg.get('authorization:techUser');
-    this.kafka_timeout = cfg.get('kafka:timeout') ?? 5000;
+    this.kafka_timeout = cfg.get('events:kafka:timeout') ?? 5000;
   }
 
   protected createStatusCode(
