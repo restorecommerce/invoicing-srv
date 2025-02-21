@@ -21,6 +21,17 @@
       }
     ]
   },
+  "events": {
+    "kafka": {
+      "groupId": "restore-invoicing-srv-test",
+      "kafka": {
+        "clientId": "restore-invoicing-srv-test",
+        "brokers": [
+          "localhost:29092"
+        ]
+      }
+    }
+  },
   "client": {
     "invoice": {
       "address": "localhost:50165"
