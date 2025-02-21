@@ -115,7 +115,7 @@ const mainMeta = {
 
 const subjects: { [key: string]: Subject } = {
   root_tech_user: {
-    id: 'root_tech_user',
+    id: 'root-tech-user',
     token: '1a4c6789-6435-487a-9308-64d06384acf9',
   },
   superadmin: {
@@ -416,7 +416,7 @@ const validInvoices: { [key: string]: InvoiceList } = {
 const users: { [key: string]: UserResponse } = {
   superadmin: {
     payload: {
-      id: 'root_tech_user',
+      id: 'root-tech-user',
       name: 'manuel.mustersuperadmin',
       firstName: 'Manuel',
       lastName: 'Mustersuperadmin',
