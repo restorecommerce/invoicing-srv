@@ -12,29 +12,39 @@ import {
   type CallContext,
 } from 'nice-grpc-common';
 import { Subject } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/auth.js';
-import { Status } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/status.js';
+import {
+  ResourceMap,
+  OnMissingCallback,
+  DEFAULT_STRICT_CALLBACK,
+} from './ResourceMap.js';
 import {
   ClientRegister,
   CRUDServiceDefinition
 } from './ClientRegister.js';
 
-export type Aggregation<T extends ResourceListResponse | ResourceList = any, C = any> = T & C;
-export type OnMissingCallback = (id?: string, entity?: string) => any;
-export type ResolverParams<T = any, M = ResolverMap> = [string, Map<string, T>, M?, T?];
-export type ArrayResolverParams<T = any, M = ResolverMap> = [string, Map<string, T>, M[]?, T[]?];
+export type Aggregation<T extends ResourceListResponse & ResourceList = any, C = any> = T & C;
+export type ResolverParams<T = any, M = ResolverMap<T>> = [string, Map<string, T>, M?, T?];
+export type ArrayResolverParams<T = any, M = ResolverMap<T>> = [string, Map<string, T>, M[]?, T[]?];
+export type ElementOf<T = any> = T extends Array<infer E> ? E : T;
 export type ResolverMap<T = any> = {
   [K in keyof T]?: ResolverParams<T[K]> | ArrayResolverParams<T[K]> | T[K]
-};
-export type ResolvedNode<T> = T extends ResolverParams
-  ? (T[2] extends ResolverMap
-    ? T[3] & Resolved<T[2]>
-    : T[3])
-  : Resolved<T>;
-export type Resolved<T extends ResolverMap> = {
-  [K in keyof T]?: ResolvedNode<T[K]>
+} & {};
+export type ResolvedNode<T, M> = T extends ResolverParams
+  ? (
+    T[2] extends object
+    ? Resolved<T[3] & T[2], T[2]>
+    : T[3]
+  )
+  : M extends object
+  ? Resolved<T & M, M>
+  : T;
+export type Resolved<T extends ResolverMap, M extends ResolverMap> = {
+  [K in keyof T]?: T[K] extends object
+    ? ResolvedNode<T[K], M[K]>
+    : T[K]
 };
 
-export const Resolver = <T = any, M = ResolverMap>(
+export const Resolver = <T, M>(
   search_key: string,
   source: Map<string, T>,
   map?: M,
@@ -45,7 +55,7 @@ export const Resolver = <T = any, M = ResolverMap>(
   {} as T,
 ];
 
-export const ArrayResolver = <T = any, M = ResolverMap>(
+export const ArrayResolver = <T, M>(
   search_key: string,
   source: Map<string, T>,
   map?: M,
@@ -53,71 +63,8 @@ export const ArrayResolver = <T = any, M = ResolverMap>(
   search_key,
   source,
   [map],
-  {} as T[],
+  [] as T[]
 ];
-
-export const DEFAULT_STRICT_CALLBACK: OnMissingCallback = (id: string, entity?: string) => {
-  throw new Error(`Resource missing: { id: ${id}, entity: ${entity} }!`);
-};
-
-export const DEFAULT_STATUS_CALLBACK: OnMissingCallback = (id?: string, entity?: string): Status => ({
-  id,
-  code: 404,
-  message: `${entity ?? 'Entity'} ${id} is missing!`
-});
-
-export class ResourceMap<T extends Resource = any> extends Map<string, T> {
-  protected _all?: T[];
-
-  public get all() {
-    this._all = this._all ?? [...this.values()];
-    return this._all;
-  }
-
-  constructor(
-    items?: T[],
-    public readonly entity = items[0]?.constructor?.name,
-  ) {
-    super(items?.map(
-      item => [item!.id, item]
-    ));
-  }
-
-  public override set(key: string, value: T) {
-    delete this._all;
-    return super.set(key, value);
-  }
-
-  public override clear() {
-    delete this._all;
-    return super.clear();
-  }
-
-  public override delete(key: string) {
-    delete this._all;
-    return super.delete(key);
-  }
-
-  public override get(
-    id: string,
-    onMissing: OnMissingCallback = DEFAULT_STRICT_CALLBACK
-  ): T {
-    if (id && onMissing && !this.has(id)) {
-      const error = onMissing(id, this.entity);
-      if (error) {
-        throw error;
-      }
-    }
-    return super.get(id);
-  }
-
-  public getMany(
-    ids: string[],
-    onMissing: OnMissingCallback = DEFAULT_STRICT_CALLBACK
-  ): T[] {
-    return ids.map(id => this.get(id, onMissing));
-  }
-}
 
 export class ResourceAggregator {
   constructor(
@@ -131,14 +78,19 @@ export class ResourceAggregator {
     service: CRUDServiceDefinition,
     subject?: Subject,
     context?: CallContext,
-    entity?: string,
   ) {
-    ids = [...new Set([ids].flatMap(id => id))];
+    ids = [...new Set(
+      [ids].flatMap(
+        id => id
+      ).filter(
+        id => id
+      )
+    )];
     const request = ids?.length ? {
       filters: [{
         filters: [
           {
-            field: '_key',
+            field: 'id',
             operation: Filter_Operation.in,
             value: JSON.stringify(ids),
             type: Filter_ValueType.ARRAY,
@@ -150,17 +102,16 @@ export class ResourceAggregator {
     } : undefined;
     const client = this.register.get(service) as any;
     const response = request && await client.read(request, context);
-    this.logger?.silly(`ResourceAggregator ${service?.name?.toString()} response:`, response);
     const map = new ResourceMap<R>(
       response?.items?.map(
         (item: any) => item.payload
       ),
-      entity ?? service?.name?.toString()
+      service?.name?.toString()
     );
     return map;
   }
 
-  public async aggregate<T extends ResourceListResponse | ResourceList, C = any>(
+  public async aggregate<T extends object, C>(
     target: T,
     sources: {
       service: CRUDServiceDefinition;
@@ -183,7 +134,6 @@ export class ResourceAggregator {
           source.service,
           subject,
           context,
-          source.entity,
         )
       )
     );
@@ -203,14 +153,14 @@ export class ResourceAggregator {
   }
 }
 
-export function resolve<T extends object, M extends ResolverMap>(
+export function resolve<T, M extends ResolverMap>(
   entity: T,
   resolverMap?: M,
-): (T & Resolved<M>);
-export function resolve<T extends object, M extends ResolverMap>(
+): Resolved<T & M, M>;
+export function resolve<T, M extends ResolverMap>(
   entity: T[],
   resolverMap?: M[],
-): (T & Resolved<M>)[] {
+): Resolved<T & M, M>[] {
   if (!entity) {
     return;
   }
@@ -222,30 +172,30 @@ export function resolve<T extends object, M extends ResolverMap>(
       entity,
       ...Object.entries(resolverMap ?? {}).map(
         ([k, r]) => {
-          const id = typeof r[0] === 'string' && (entity as any)[r[0]];
+          const id = typeof r?.[0] === 'string' && (entity as any)[r[0]];
           if (!id) {
             return {
-              [k]: resolve((entity as any)[k], r)
+              [k]: resolve(entity[k], r)
             };
           }
           else if (Array.isArray(id)) {
             return {
               [k]: id.map(
-                id => r[2] ? resolve(
-                  r[1]?.get(id.toString()), r[2],
-                ) : r[1]?.get(id.toString())
+                id => r[2]
+                  ? resolve(r[1]?.get(id.toString()), r[2])
+                  : r[1]?.get(id.toString())
               )
             };
           }
           else if (typeof id === 'string') {
             return {
-              [k]: r[2] ? resolve(
-                r[1]?.get(id), r[2],
-              ) : r[1]?.get(id)
+              [k]: r[2]
+                ? resolve(r[1]?.get(id), r[2])
+                : r[1]?.get(id)
             };
           }
         }
-      ).filter(e => !!e)
+      ).filter(e => e)
     );
   }
 };

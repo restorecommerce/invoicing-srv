@@ -1,13 +1,10 @@
 import * as fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
-import * as uuid from 'uuid';
+import { Readable, Transform } from 'node:stream';
 import { sprintf } from 'sprintf-js';
 import { parse as CSV } from 'csv-parse/sync';
 import { type RedisClientType } from 'redis';
-import {
-  ResourcesAPIBase,
-  ServiceBase
-} from '@restorecommerce/resource-base-interface';
 import {
   type Client,
   GrpcClientConfig,
@@ -39,8 +36,6 @@ import { type ServiceConfig } from '@restorecommerce/service-config';
 import { type Logger } from '@restorecommerce/logger';
 import {
   DeleteRequest,
-  DeleteResponse,
-  ReadRequest,
   Sort_SortOrder
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/resource_base.js';
 import {
@@ -50,7 +45,6 @@ import {
   DefaultResourceFactory,
   Operation,
   access_controlled_function,
-  access_controlled_service,
   injects_meta_data,
   resolves_subject,
 } from '@restorecommerce/acs-client';
@@ -106,14 +100,6 @@ import {
   FulfillmentProductServiceDefinition,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/fulfillment_product.js';
 import {
-  Filter_Operation,
-  Filter_ValueType,
-} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/filter.js';
-import {
-  ResourceAggregator,
-  ResourceMap,
-} from '../experimental/ResourceAggregator.js';
-import {
   Template,
   TemplateServiceDefinition,
   TemplateUseCase,
@@ -125,16 +111,29 @@ import {
 import {
   File
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/file.js';
-import { Readable, Transform } from 'node:stream';
-import { InvoiceNumberService } from './invoice_number_srv.js';
-import { ResourceAwaitQueue } from '../experimental/ResourceAwaitQueue.js';
-import { ClientRegister } from '../experimental/ClientRegister.js';
 import {
-  DefaultUrns,
+  CountryServiceDefinition
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/country.js';
+import {
+  AddressServiceDefinition
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/address.js';
+import {
+  CurrencyServiceDefinition
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/currency.js';
+import { InvoiceNumberService } from './invoice_number_srv.js';
+import {
+  AccessControlledServiceBase,
+  ClientRegister,
+  ResourceAwaitQueue,
+  ResourceAggregator,
+  ResourceMap,
+} from '../experimental/index.js';
+import {
   type KnownUrns,
-  type InvoiceAggregationTemplate,
   type AggregatedInvoiceList,
   type ResolvedSetting,
+  DefaultUrns,
+  InvoiceAggregationTemplate,
   DefaultSetting,
   parseSetting,
   marshallProtobufAny,
@@ -149,8 +148,10 @@ export type AggregatedPosition = Position & {
   product: PositionProduct;
 };
 export type RenderResult = {
-  id?: string;
-  body?: string;
+  payload?: {
+    id?: string;
+    body?: string;
+  }
   status?: Status;
 };
 
@@ -159,9 +160,9 @@ export type AwaitStringMutex = {
   resolve: AwaitStringFunc;
   reject: (error: any) => any;
 };
-@access_controlled_service
+
 export class InvoiceService
-  extends ServiceBase<InvoiceListResponse, InvoiceList>
+  extends AccessControlledServiceBase<InvoiceListResponse, InvoiceList>
   implements InvoiceServiceImplementation
 {
   protected static async ACSContextFactory(
@@ -233,6 +234,10 @@ export class InvoiceService
       code: 500,
       message: 'Request timeout, API not responding!',
     },
+    NO_ITEM: {
+      code: 400,
+      message: 'No {entity} in query!',
+    },
   };
 
   protected readonly tech_user: Subject;
@@ -278,16 +283,11 @@ export class InvoiceService
     super(
       cfg.get('database:main:entities:0') ?? 'invoice',
       invoicingTopic,
+      db,
+      cfg,
       logger,
-      new ResourcesAPIBase(
-        db,
-        cfg.get('database:main:collections:0') ?? 'invoices',
-        cfg.get('fieldHandlers'),
-        undefined,
-        undefined,
-        logger,
-      ),
-      !!cfg.get('events:enableEvents'),
+      cfg.get('events:enableEvents')?.toString() === 'true',
+      cfg.get('database:main:collections:0') ?? 'invoices',
     );
 
     this.notification_service = createClient(
@@ -375,16 +375,6 @@ export class InvoiceService
     );
   }
 
-  protected catchStatusError(e: any, id?: string): Status {
-    const status = {
-      id,
-      code: Number.isInteger(e?.code) ? e.code : 500,
-      message: e?.message ?? e?.details ?? (e ? JSON.stringify(e) : 'Unknown Error!'),
-    };
-    this.logger?.error({ status, stack: e?.stack });
-    return status;
-  }
-
   protected createOperationStatusCode(
     status?: OperationStatus,
     entity?: string,
@@ -398,19 +388,6 @@ export class InvoiceService
         '{id}', id ?? 'undefined'
       ) ?? 'Unknown status',
     };
-  }
-
-  protected catchOperationError(e: any) {
-    const status = {
-      items: new Array<any>(),
-      total_count: 0,
-      operation_status: {
-        code: Number.isInteger(e?.code) ? e.code : 500,
-        message: e?.message ?? e?.details ?? (e ? JSON.stringify(e) : 'Unknown Error!'),
-      }
-    };
-    this.logger?.error({ status, stack: e?.stack });
-    return status;
   }
 
   protected resolveSettings(
@@ -471,40 +448,6 @@ export class InvoiceService
       );
     }
     return output;
-  }
-
-  protected async get(
-    ids: string[],
-    subject?: Subject,
-    context?: any,
-  ): Promise<InvoiceListResponse> {
-    ids = [...new Set(ids)].filter(id => id);
-    if (ids.length > 1000) {
-      throw {
-        code: 500,
-        message: 'Query exceeds limit of 1000!'
-      } as OperationStatus;
-    }
-
-    if (ids.length === 0) {
-      return {
-        total_count: 0,
-        operation_status: this.operation_status_codes.SUCCESS,
-      };
-    }
-
-    const request = ReadRequest.fromPartial({
-      filters: [{
-        filters: [{
-          field: '_key',
-          operation: Filter_Operation.in,
-          value: JSON.stringify(ids),
-          type: Filter_ValueType.ARRAY
-        }]
-      }],
-      subject
-    });
-    return await super.read(request, context);
   }
 
   protected async generateInvoiceNumbers(
@@ -756,7 +699,7 @@ export class InvoiceService
           entity: 'FulfillmentProduct',
         },
       ],
-      {} as InvoiceAggregationTemplate,
+      InvoiceAggregationTemplate,
       subject,
       context,
     ).then(
@@ -792,7 +735,7 @@ export class InvoiceService
               aggregation.shops?.all.map(
                 shop => shop?.organization_id
               ),
-            ).filter(i => i),
+            ),
             container: 'organizations',
             entity: 'Organization',
           },
@@ -800,7 +743,7 @@ export class InvoiceService
             service: ManufacturerServiceDefinition,
             map_by_ids: (aggregation) => aggregation.products?.all.map(
               product => product!.product?.manufacturer_id
-            ).filter(i => i),
+            ),
             container: 'manufacturers',
             entity: 'Manufacturer',
           },
@@ -839,8 +782,52 @@ export class InvoiceService
             container: 'settings',
             entity: 'Setting',
           },
+          {
+            service: CurrencyServiceDefinition,
+            map_by_ids: (aggregation) => [
+              aggregation.items?.flatMap(
+                item => item.sections?.flatMap(
+                  section => [
+                    section.amounts?.flatMap(
+                      amount => amount.currency_id
+                    ),
+                    section.positions?.flatMap(
+                      position => [
+                        position.unit_price?.currency_id,
+                        position.amount?.currency_id
+                      ]
+                    )
+                  ].flatMap(ids => ids)
+                )
+              ),
+              aggregation.products.all.flatMap(
+                product => [
+                  product.product?.physical?.templates?.map(
+                    t => t.price?.currency_id
+                  ),
+                  product.product?.physical?.variants?.map(
+                    t => t.price?.currency_id
+                  ),
+                  product.product?.virtual?.templates?.map(
+                    t => t.price?.currency_id
+                  ),
+                  product.product?.virtual?.variants?.map(
+                    t => t.price?.currency_id
+                  ),
+                  product.product?.service?.templates?.map(
+                    t => t.price?.currency_id
+                  ),
+                  product.product?.service?.variants?.map(
+                    t => t.price?.currency_id
+                  ),
+                ].flatMap(ids => ids)
+              ),
+            ].flatMap(ids => ids),
+            container: 'currencies',
+            entity: 'Currency'
+          }
         ],
-        {} as InvoiceAggregationTemplate,
+        InvoiceAggregationTemplate,
         subject,
         context,
       )
@@ -860,6 +847,62 @@ export class InvoiceService
             ).filter(i => i),
             container: 'contact_points',
             entity: 'ContactPoint',
+          },
+        ],
+        InvoiceAggregationTemplate,
+        subject,
+        context,
+      )
+    ).then(
+      async aggregation => await this.aggregator.aggregate(
+        aggregation,
+        [
+          {
+            service: AddressServiceDefinition,
+            map_by_ids: (aggregation) => [].concat(
+              aggregation.contact_points.all.map(
+                cp => cp.physical_address_id
+              ),
+              aggregation.items.map(
+                item => item?.recipient?.address?.id
+              ),
+              aggregation.items.map(
+                item => item?.sender?.address?.id
+              ),
+            ),
+            container: 'addresses',
+            entity: 'Address',
+          },
+        ],
+        InvoiceAggregationTemplate,
+        subject,
+        context,
+      )
+    ).then(
+      async aggregation => await this.aggregator.aggregate(
+        aggregation,
+        [
+          {
+            service: CountryServiceDefinition,
+            map_by_ids: (aggregation) => [].concat(
+              aggregation.addresses.all.map(
+                a => a.country_id
+              ),
+              aggregation.taxes.all.map(
+                tax => tax.country_id
+              ),
+              aggregation.currencies.all.flatMap(
+                currency => currency.country_ids
+              ),
+              aggregation.items.map(
+                item => item?.recipient?.address?.country_id
+              ),
+              aggregation.items.map(
+                item => item?.sender?.address?.country_id
+              ),
+            ),
+            container: 'countries',
+            entity: 'Country',
           },
         ],
         {} as InvoiceAggregationTemplate,
@@ -1125,72 +1168,6 @@ export class InvoiceService
     );
   }
 
-  @access_controlled_function({
-    action: AuthZAction.READ,
-    operation: Operation.whatIsAllowed,
-    context: DefaultACSClientContextFactory,
-    resource: [{ resource: 'invoice' }],
-    database: 'arangoDB',
-    useCache: true,
-  })
-  public override async read(
-    request: ReadRequest,
-    context?: CallContext,
-  ): Promise<InvoiceListResponse> {
-    return super.read(request, context);
-  }
-
-  @resolves_subject()
-  @injects_meta_data()
-  @access_controlled_function({
-    action: AuthZAction.CREATE,
-    operation: Operation.isAllowed,
-    context: InvoiceService.ACSContextFactory,
-    resource: DefaultResourceFactory('invoice'),
-    database: 'arangoDB',
-    useCache: true,
-  })
-  public override async create(
-    request: InvoiceList,
-    context: CallContext,
-  ): Promise<InvoiceListResponse> {
-    return super.create(request, context);
-  }
-
-  @resolves_subject()
-  @injects_meta_data()
-  @access_controlled_function({
-    action: AuthZAction.MODIFY,
-    operation: Operation.isAllowed,
-    context: InvoiceService.ACSContextFactory,
-    resource: DefaultResourceFactory('invoice'),
-    database: 'arangoDB',
-    useCache: true,
-  })
-  public override async update(
-    request: InvoiceList,
-    context?: CallContext,
-  ): Promise<InvoiceListResponse> {
-    return super.update(request, context);
-  }
-
-  @resolves_subject()
-  @injects_meta_data()
-  @access_controlled_function({
-    action: AuthZAction.MODIFY,
-    operation: Operation.isAllowed,
-    context: InvoiceService.ACSContextFactory,
-    resource: DefaultResourceFactory('invoice'),
-    database: 'arangoDB',
-    useCache: true,
-  })
-  public override async upsert(
-    request: InvoiceList,
-    context?: CallContext,
-  ): Promise<InvoiceListResponse> {
-    return super.upsert(request, context);
-  }
-
   @resolves_subject()
   @injects_meta_data()
   @access_controlled_function({
@@ -1209,7 +1186,7 @@ export class InvoiceService
       if (!request.items?.length) {
         return {
           items: [],
-          operation_status: this.operation_status_codes.SUCCESS,
+          operation_status: this.operation_status_codes.NO_ITEM,
         }
       }
 
@@ -1232,26 +1209,6 @@ export class InvoiceService
         aggregation => this.generateInvoiceNumbers(aggregation, context)
       );
 
-      /*
-      aggregation.items = await super.upsert(
-        {
-          items: aggregation.items,
-          total_count: aggregation.items.length,
-          subject: request.subject
-        },
-        context
-      ).then(
-        response => {
-          if (response.operation_status?.code !== 200) {
-            throw response.operation_status;
-          }
-          return response.items.map(
-            item => item.payload
-          );
-        }
-      );
-      */
-
       const default_templates = await this.loadDefaultTemplates().then(
         df => df.filter(
           template => template.use_case === TemplateUseCase.INVOICE_PDF
@@ -1269,21 +1226,21 @@ export class InvoiceService
             request.subject,
           ).then(
             async (): Promise<RenderResult> => ({
-              id: item.id,
-              body: await this.awaits_render_result.await(
-                render_id, this.kafka_timeout
-              ).then(
-                b => b.join('')
-              ),
+              payload: {
+                id: item.id,
+                body: await this.awaits_render_result.await(
+                  render_id, this.kafka_timeout
+                ).then(
+                  b => b.join('')
+                ),
+              },
               status: {
                 code: 200,
                 message: 'OK',
               }
             })
           ).catch(
-            (err): RenderResult => ({
-              status: this.catchStatusError(err, item.id)
-            })
+            (err) => this.catchStatusError<RenderResult>(err, { payload: item })
           ).then(
             response => {
               if (response.status?.code === 200) {
@@ -1296,7 +1253,7 @@ export class InvoiceService
                 );
                 return this.renderPdf(
                   invoice,
-                  response.body,
+                  response.payload.body,
                   setting,
                   this.tech_user ?? request.subject,
                   context,
@@ -1321,7 +1278,7 @@ export class InvoiceService
           item => item.payload
         )
       ).then(
-        items => items.length ? super.upsert(
+        items => items.length ? this.superUpsert(
           {
             items,
             total_count: items.length,
@@ -1331,7 +1288,13 @@ export class InvoiceService
         ) : undefined
       ).then(
         response => {
-          if (response.operation_status?.code !== 200) {
+          if (!response) {
+            return {
+              items: [],
+              operation_status: this.operation_status_codes.NO_ITEM,
+            }
+          }
+          else if (response.operation_status?.code !== 200) {
             return response;
           }
 
@@ -1389,7 +1352,7 @@ export class InvoiceService
       if (!request.items?.length) {
         return {
           status: [],
-          operation_status: this.operation_status_codes.SUCCESS,
+          operation_status: this.operation_status_codes.NO_ITEM,
         }
       }
       const ids = request.items.map(item => item.id);
@@ -1397,6 +1360,7 @@ export class InvoiceService
         ids,
         request.subject,
         context,
+        true,
       ).then(
         response => {
           if (response.operation_status?.code === 200) {
@@ -1465,7 +1429,7 @@ export class InvoiceService
         }
       ));
 
-      const response = await super.update({
+      const response = await this.superUpdate({
         items,
         subject: request.subject
       }, context);
@@ -1507,22 +1471,6 @@ export class InvoiceService
     );
   }
 
-  @resolves_subject()
-  @access_controlled_function({
-    action: AuthZAction.DELETE,
-    operation: Operation.isAllowed,
-    context: InvoiceService.ACSContextFactory,
-    resource: DefaultResourceFactory('invoice'),
-    database: 'arangoDB',
-    useCache: true,
-  })
-  public override async delete(
-    request: DeleteRequest,
-    context?: CallContext,
-  ): Promise<DeleteResponse> {
-    return super.delete(request, context);
-  }
-
   protected async storageHtmlRenderResponse(
     invoice: Invoice,
     body: string,
@@ -1533,7 +1481,7 @@ export class InvoiceService
     const buffer = Buffer.from(body);
     const stream = Readable.from(buffer);
     try {
-      const document_id = uuid.v4();
+      const document_id = randomUUID();
       const transformer = new Transform({
         objectMode: true,
         transform: (chunk, _, done) => {
@@ -1586,7 +1534,7 @@ export class InvoiceService
           return invoice;
         }
       ).then(
-        invoice => super.update(
+        invoice => this.superUpsert(
           {
             items: [invoice],
             total_count: 1,
@@ -1614,7 +1562,7 @@ export class InvoiceService
   ) {
     const stream = Readable.from(buffer);
     try {
-      const document_id = uuid.v4();
+      const document_id = randomUUID();
       const key = [
         invoice.shop_id,
         invoice.id,
@@ -1668,7 +1616,7 @@ export class InvoiceService
           return invoice;
         }
       ).then(
-        invoice => super.update(
+        invoice => this.superUpsert(
           {
             items: [invoice],
             total_count: 1,
@@ -1705,7 +1653,7 @@ export class InvoiceService
         );
       }
 
-      const document_id = uuid.v4();
+      const document_id = randomUUID();
       const timestamp = new Date().toISOString();
       const bucket = setting.shop_pdf_bucket;
       const key = [
@@ -1781,10 +1729,7 @@ export class InvoiceService
       };
     }
     catch (err) {
-      return {
-        payload: invoice,
-        status: this.catchStatusError(err, invoice?.id)
-      };
+      return this.catchStatusError(err, { payload: invoice });
     }
   }
 
