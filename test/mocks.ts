@@ -114,18 +114,18 @@ const mainMeta = {
 };
 
 const subjects: { [key: string]: Subject } = {
-  root_tech_user: {
+  'root-tech-user': {
     id: 'root-tech-user',
     token: '1a4c6789-6435-487a-9308-64d06384acf9',
   },
   superadmin: {
     id: 'superadmin',
-    scope: 'main',
+    //scope: 'main',
     token: 'superadmin',
   },
   admin: {
     id: 'admin',
-    scope: 'sub',
+    //scope: 'sub',
     token: 'admin',
   },
 };
@@ -146,6 +146,9 @@ const residentialAddresses: Address[] = [{
     street: 'Some Where',
     buildingNumber: '66',
     countryId: 'germany',
+    postcode: '789456',
+    region: 'Baden Wuettemberg',
+    locality: 'Stuttgart',
   },
   contact: {
     email: 'user@test.spec',
@@ -161,7 +164,7 @@ const businessAddresses: Address[] = [{
     businessAddress: {
       name: 'Restorecommerce GmbH',
     },
-    street: 'Somewhere',
+    street: 'Some Where',
     buildingNumber: '66',
     countryId: 'germany'
   },
@@ -188,11 +191,11 @@ const countries: CountryResponse[] = [{
 const currencies: CurrencyListResponse = {
   items: [{
     payload: {
-      id: 'euro',
+      id: 'EUR',
       countryIds: ['germany'],
       name: 'Euro',
       precision: 2,
-      symbol: '€',
+      symbol: 'EUR',
       meta: mainMeta,
     },
     status,
@@ -204,6 +207,7 @@ const taxes: TaxResponse[] = [
   {
     payload: {
       id: 'tax_1',
+      name: 'MwSt.',
       countryId: 'germany',
       rate: 0.19,
       typeId: 'taxType_1',
@@ -254,7 +258,7 @@ const products: ProductResponse[] = [
               name: 'Physical Product 1 Blue',
               description: 'This is a physical product in blue',
               price: {
-                currencyId: 'currency_1',
+                currencyId: 'EUR',
                 regularPrice: 9.99,
                 salePrice: 8.99,
                 sale: false,
@@ -383,29 +387,58 @@ const validInvoices: { [key: string]: InvoiceList } = {
         documents: [],
         sections: [
           {
-            id: '000',
+            id: '001',
             positions: [
               {
-                id: '000',
+                id: '001',
                 productItem: {
                   productId: 'physicalProduct_1',
                   variantId: '1',
                 },
+                quantity: 1,
+                unitPrice: {
+                  currencyId: 'EUR',
+                  regularPrice: 9.99,
+                  salePrice: 8.99,
+                  sale: true,
+                },
                 amount: {
-                  currencyId: 'euro',
+                  currencyId: 'EUR',
                   gross: 8.99,
-                  net: 8.99,
+                  net: 10.70,
                   vats: [
                     {
                       taxId: 'tax_1',
-                      vat: 0,
+                      vat: 1.71,
                     }
                   ]
                 }
               }
-            ]
+            ],
+            amounts: [{
+              currencyId: 'EUR',
+              gross: 8.99,
+              net: 10.70,
+              vats: [
+                {
+                  taxId: 'tax_1',
+                  vat: 1.71,
+                }
+              ]
+            }]
           }
         ],
+        totalAmounts: [{
+          currencyId: 'EUR',
+          gross: 8.99,
+          net: 10.70,
+          vats: [
+            {
+              taxId: 'tax_1',
+              vat: 1.71,
+            }
+          ]
+        }]
       }
     ],
     totalCount: 1,
@@ -414,9 +447,16 @@ const validInvoices: { [key: string]: InvoiceList } = {
 };
 
 const users: { [key: string]: UserResponse } = {
-  superadmin: {
+  'root-tech-user': {
     payload: {
       id: 'root-tech-user',
+      meta: mainMeta,
+    },
+    status,
+  },
+  superadmin: {
+    payload: {
+      id: 'superadmin',
       name: 'manuel.mustersuperadmin',
       firstName: 'Manuel',
       lastName: 'Mustersuperadmin',
@@ -436,7 +476,7 @@ const users: { [key: string]: UserResponse } = {
       userType: UserType.ORG_USER,
       tokens: [
         {
-          token: 'root_tech_user',
+          token: 'superadmin',
         }
       ],
       meta: mainMeta,
@@ -556,12 +596,12 @@ const whatIsAllowed: ReverseQuery = {
     {
       id: 'policy_set',
       combiningAlgorithm: 'urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:permit-overrides',
-      effect: Effect.DENY,
+      effect: Effect.PERMIT,
       policies: [
         {
           id: 'policy_superadmin_permit_all',
           combiningAlgorithm: 'urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:permit-overrides',
-          effect: Effect.DENY,
+          effect: Effect.PERMIT,
           target: {
             subjects: [
               {
@@ -585,7 +625,7 @@ const whatIsAllowed: ReverseQuery = {
         },{
           id: 'policy_admin_permit_all_by_scope',
           combiningAlgorithm: 'urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:permit-overrides',
-          effect: Effect.DENY,
+          effect: Effect.PERMIT,
           target: {
             subjects: [
               {
@@ -759,7 +799,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           name: 'Parcel S up to 2kg',
           description: 'For small parcels up to 2kg',
           price: {
-            currencyId: 'euro',
+            currencyId: 'EUR',
             regularPrice: 3.79,
             salePrice: 3.79,
             sale: false,
@@ -775,7 +815,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           name: 'Parcel M up to 2kg',
           description: 'For medium sized parcels up to 2kg',
           price: {
-            currencyId: 'euro',
+            currencyId: 'EUR',
             regularPrice: 4.49,
             salePrice: 4.49,
             sale: false,
@@ -828,7 +868,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           name: 'Parcel S up to 2kg',
           description: 'For small sized parcels up to 2kg',
           price: {
-            currencyId: 'euro',
+            currencyId: 'EUR',
             regularPrice: 3.79,
             salePrice: 3.79,
             sale: false,
@@ -844,7 +884,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           name: 'Parcel M up to 2kg',
           description: 'For medium sized parcels up to 2kg',
           price: {
-            currencyId: 'euro',
+            currencyId: 'EUR',
             regularPrice: 4.49,
             salePrice: 4.49,
             sale: false,
@@ -896,7 +936,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           name: 'Parcel S up to 2kg',
           description: 'For small parcels up to 2kg',
           price: {
-            currencyId: 'euro',
+            currencyId: 'EUR',
             regularPrice: 4.79,
             salePrice: 4.79,
             sale: false,
@@ -912,7 +952,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           name: 'Parcel M up to 2kg',
           description: 'For medium sized parcels up to 2kg',
           price: {
-            currencyId: 'euro',
+            currencyId: 'EUR',
             regularPrice: 5.49,
             salePrice: 5.49,
             sale: false,
@@ -960,7 +1000,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           name: 'Parcel S up to 2kg',
           description: 'For small sized parcels up to 2kg',
           price: {
-            currencyId: 'euro',
+            currencyId: 'EUR',
             regularPrice: 4.79,
             salePrice: 4.79,
             sale: false,
@@ -976,7 +1016,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           name: 'Parcel M up to 2kg',
           description: 'For medium sized parcels up to 2kg',
           price: {
-            currencyId: 'euro',
+            currencyId: 'EUR',
             regularPrice: 8.49,
             salePrice: 8.49,
             sale: false,
@@ -992,7 +1032,6 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           created: new Date(),
           modified: new Date(),
           modifiedBy: 'SYSTEM',
-          acls: [],
           owners: [{
             id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
             value: 'urn:restorecommerce:acs:model:user.User',

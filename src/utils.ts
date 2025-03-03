@@ -80,7 +80,7 @@ import {
   Resolver,
   ArrayResolver,
   ResourceMap,
-} from './experimental/ResourceAggregator.js';
+} from './experimental/index.js';
 
 export const DefaultUrns = {
   shop_default_bucket:                'urn:restorecommerce:shop:setting:invoice:bucket:default',        // [string]: overrides default bucket for file storage - default: cfg -> 'invoice'
@@ -138,6 +138,7 @@ export type InvoiceAggregationTemplate = {
   templates?: ResourceMap<Template>;
   settings?: ResourceMap<Setting>;
 };
+export const InvoiceAggregationTemplate = {} as InvoiceAggregationTemplate;
 
 export type AggregatedInvoiceList = Aggregation<InvoiceList, InvoiceAggregationTemplate>;
 
@@ -246,6 +247,21 @@ export const resolveInvoice = (
   aggregation: AggregatedInvoiceList,
   invoice: Invoice,
 ) => {
+  const country_resolver = Resolver('country_id', aggregation.countries);
+  const currency_resolver = Resolver(
+    'currency_id',
+    aggregation.currencies,
+    {
+      countries: ArrayResolver('country_ids', aggregation.countries),
+    }
+  );
+  const address_resolver = Resolver(
+    'address_id',
+    aggregation.addresses,
+    {
+      country: country_resolver,
+    }
+  );
   const contact_points_resolver = ArrayResolver(
     'contact_point_ids',
     aggregation.contact_points,
@@ -296,10 +312,6 @@ export const resolveInvoice = (
       }
     )
   };
-  const currency_resolver = Resolver(
-    'currency_id',
-    aggregation.currencies,
-  );
   const tax_resolver = Resolver('tax_id', aggregation.taxes, {
     type: Resolver('type_id', aggregation.tax_types),
   });
@@ -334,6 +346,12 @@ export const resolveInvoice = (
   const resolved = resolve(
     invoice,
     {
+      sender: {
+        address: address_resolver
+      },
+      recipient: {
+        address: address_resolver
+      },
       customer: Resolver('customer_id', aggregation.customers, {
         commercial: organization_resolver,
         public_sector: organization_resolver,
@@ -345,7 +363,8 @@ export const resolveInvoice = (
         organization: organization_resolver
       }),
       user: user_resolver,
-      sections: section_resolver
+      sections: section_resolver,
+      total_amounts: [amount_resolver],
     }
   );
 

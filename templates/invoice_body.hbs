@@ -9,7 +9,7 @@
   </tr>
   {{#each invoice.references}}
   <tr>
-    <td>{{t 'l10n.invoice.reference.id'}}</td>
+    <td>{{t instance_type}}</td>
     <td class="vclAlignRight">{{instance_id}}</td>
   </tr>
   {{/each}}
@@ -29,22 +29,22 @@
     <tr>
       <td class="vclSpan-10p">{{t 'l10n.invoice.billingAddress'}}</td>
       <td>
-      {{#if invoice.recipient.business_address}}
+      {{#if invoice.recipient.address.business_address}}
         {{invoice.recipient.business_address.name}}
       {{/if}}
-      {{#if invoice.recipient.residential_address}}
+      {{#if invoice.recipient.address.residential_address}}
         {{t 'l10n.invoice.salutation'
-          title=invoice.recipient.residential_address.title
-          familyName=invoice.recipient.residential_address.family_name
-          midName=invoice.recipient.residential_address.mid_name
-          givenName=invoice.recipient.residential_address.given_name
+          title='test'
+          familyName=invoice.recipient.address.residential_address.family_name
+          midName=invoice.recipient.address.residential_address.mid_name
+          givenName=invoice.recipient.address.residential_address.given_name
         }}
       {{/if}}
       </td>
     </tr>
     <tr>
       <td> </td>
-      <td>{{invoice.recipient.address.street}}</td>
+      <td>{{invoice.recipient.address.street}} {{invoice.recipient.address.building_number}}</td>
     </tr>
     <tr>
       <td> </td>
@@ -52,7 +52,7 @@
     </tr>
     <tr>
       <td> </td>
-      <td>{{billing_country.name}}</td>
+      <td>{{invoice.recipient.address.country.name}}</td>
     </tr>
     {{else}}
     <tr>
@@ -67,10 +67,10 @@
 
 <br>
 
-{{#each invoice.sections as | section |}}
 <table id="items" class="vclTable vclSumTable">
   <thead>
     <tr>
+      <th></th>
       <th>{{t 'l10n.invoice.position'}}</th>
       <th>{{t 'l10n.invoice.name'}}</th>
       <th>{{t 'l10n.invoice.quantity'}}</th>
@@ -79,34 +79,69 @@
     </tr>
   </thead>
   <tbody>
+    <!-- In this template we union all sections into one table! -->
+    {{#each invoice.sections as | section |}}
     {{#each section.positions as | position |}}
     <tr>
-      <td>{{id}}</td>
-      
-      {{#if position.product_item.product}}
-        <td>{{position.product_item.product.name}}</td>
+      <td>{{increment @index}}</td>
+      <td>{{position.id}}</td>
+      <td>{{
+        position.product_item.product.product.name
+      }}{{
+        position.product_item.product.bundle.name
+      }}{{
+        position.fulfillment_item.fulfillment_product.name
+      }}{{
+        position.manual_item.name
+      }}</td>
+      <td>{{position.quantity}}</td>
+      {{#if position.unit_price.sale }}
+      <td class="vclAlignRight">{{
+        nfc position.unit_price.sale_price
+        cc=position.unit_price.currency.symbol
+      }}</td>
+      {{else}}
+      <td class="vclAlignRight">{{
+        nfc position.unit_price.regular_price
+        cc=position.unit_price.currency.symbol
+      }}</td>
       {{/if}}
-      
-      {{#if position.product_item.fulfillment_item}}
-        <td>{{fulfillment_product.name}}</td>
-      {{/if}}
-      
-      {{#if position.product_item.manual_item}}
-        <td>{{position.product_item.manual_item.name}}</td>
-      {{/if}}
-      
-      <td>{{position.product_item.quantity}}</td>
-
+      <td class="vclAlignRight">{{
+        nfc position.amount.gross
+        cc=position.amount.currency.symbol
+      }}</td>
+    </tr>
+    {{/each}}
+    <tr class="vclNoBorder">
+      <td colspan="6">&nbsp;</td>
+    </tr>
+    {{/each}}
+    {{#each invoice.total_amounts as | amount |}}
+    <tr class="vclSumTableTotal">
+      <td colspan="4">{{t 'l10n.invoice.gross'}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc amount.gross cc=amount.currency.symbol}}</td>
+    </tr>
+    {{#each amount.vats as | vat |}}
+    <tr class="vclNoBorder">
+      <td colspan="4">+ {{vat.tax.name}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc vat.vat cc=amount.currency.symbol}}</td>
+    </tr>
+    {{/each}}
+    <tr class="vclSumTableTotal">
+      <td colspan="4">{{t 'l10n.invoice.total'}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc amount.net cc=amount.currency.symbol}}</td>
+    </tr>
+    <tr class="vclNoBorder">
+      <td colspan="6">&nbsp;</td>
     </tr>
     {{/each}}
   </tbody>
 </table>
-{{/each}}
 
 <br>
 
 <p class="vclAlignCentered">
-  {{{t 'l10n.invoice.footer.title' shopName=invoice.shop.name}}}
+  {{t 'l10n.invoice.footer.title' shopName=invoice.shop.name}}
   <br>
   <br>
   <img src={{t 'l10n.invoice.logo.url'}}/>
