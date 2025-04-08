@@ -278,10 +278,10 @@
         "messageObject": "io.restorecommerce.commandinterface.CommandResponse"
       },
       "renderRequest": {
-        "messageObject": "io.restorecommerce.rendering.RenderRequest"
+        "messageObject": "io.restorecommerce.rendering.RenderRequestList"
       },
       "renderResponse": {
-        "messageObject": "io.restorecommerce.rendering.RenderResponse"
+        "messageObject": "io.restorecommerce.rendering.RenderResponseList"
       },
       "sendEmail": {
         "messageObject": "io.restorecommerce.notification_req.NotificationReq"
@@ -416,122 +416,108 @@
     },
     "Templates": [
       {
-        "body": {
+        "bodies": [{
           "url": "file://./templates/invoice_header.hbs"
-        },
-        "localization": [
-          {
-            "local_codes": ["en"],
-            "l10n": {
-              "url": "file://./templates/l10n.csv",
-              "content_type": "text/csv"
-            }
+        }],
+        "localizations": [{
+          "locales": ["en"],
+          "l10n": {
+            "url": "file://./templates/l10n.csv",
+            "content_type": "text/csv"
           }
-        ],
+        }],
         "ordinal": 0,
         "use_case": "INVOICE_PDF"
       },
       {
-        "body": {
+        "bodies": [{
           "url": "file://./templates/invoice_body.hbs"
-        },
-        "layout": {
+        }],
+        "layouts": [{
           "url": "file://./templates/invoice_layout.hbs"
-        },
-        "localization": [
-          {
-            "local_codes": ["en"],
-            "l10n": {
-              "url": "file://./templates/l10n.csv",
-              "content_type": "text/csv"
-            }
+        }],
+        "localizations": [{
+          "locales": ["en"],
+          "l10n": {
+            "url": "file://./templates/l10n.csv",
+            "content_type": "text/csv"
           }
-        ],
+        }],
         "ordinal": 1,
         "use_case": "INVOICE_PDF"
       },
       {
-        "body": {
+        "bodies": [{
           "url": "file://./templates/invoice_footer.hbs"
-        },
-        "localization": [
-          {
-            "local_codes": ["en"],
-            "l10n": {
-              "url": "file://./templates/l10n.csv",
-              "content_type": "text/csv"
-            }
+        }],
+        "localizations": [{
+          "locales": ["en"],
+          "l10n": {
+            "url": "file://./templates/l10n.csv",
+            "content_type": "text/csv"
           }
-        ],
+        }],
         "ordinal": 2,
         "use_case": "INVOICE_PDF"
       },
       {
-        "body": {
+        "bodies": [{
           "url": "file://./templates/invoice_subject.hbs"
-        },
-        "localization": [
-          {
-            "local_codes": ["en"],
-            "l10n": {
-              "url": "file://./templates/l10n.csv",
-              "content_type": "text/csv"
-            }
+        }],
+        "localizations": [{
+          "locales": ["en"],
+          "l10n": {
+            "url": "file://./templates/l10n.csv",
+            "content_type": "text/csv"
           }
-        ],
+        }],
         "ordinal": 0,
-        "use_case": "INVOICE_EMAIL"
+        "use_case": "INVOICE_EMAIL_SUBJECT"
       },
       {
-        "body": {
+        "bodies": [{
           "url": "file://./templates/invoice_header.hbs"
-        },
-        "localization": [
-          {
-            "local_codes": ["en"],
-            "l10n": {
-              "url": "file://./templates/l10n.csv",
-              "content_type": "text/csv"
-            }
+        }],
+        "localizations": [{
+          "locales": ["en"],
+          "l10n": {
+            "url": "file://./templates/l10n.csv",
+            "content_type": "text/csv"
           }
-        ],
+        }],
         "ordinal": 1,
-        "use_case": "INVOICE_EMAIL"
+        "use_case": "INVOICE_EMAIL_BODY"
       },
       {
-        "body": {
+        "bodies": [{
           "url": "file://./templates/invoice_body.hbs"
-        },
-        "layout": {
+        }],
+        "layouts": [{
           "url": "file://./templates/invoice_layout.hbs"
-        },
-        "localization": [
-          {
-            "local_codes": ["en"],
-            "l10n": {
-              "url": "file://./templates/l10n.csv",
-              "content_type": "text/csv"
-            }
+        }],
+        "localizations": [{
+          "locales": ["en"],
+          "l10n": {
+            "url": "file://./templates/l10n.csv",
+            "content_type": "text/csv"
           }
-        ],
+        }],
         "ordinal": 2,
-        "use_case": "INVOICE_EMAIL"
+        "use_case": "INVOICE_EMAIL_BODY"
       },
       {
-        "body": {
+        "bodies": [{
           "url": "file://./templates/invoice_footer.hbs"
-        },
-        "localization": [
-          {
-            "local_codes": ["en"],
-            "l10n": {
-              "url": "file://./templates/l10n.csv",
-              "content_type": "text/csv"
-            }
+        }],
+        "localizations": [{
+          "locales": ["en"],
+          "l10n": {
+            "url": "file://./templates/l10n.csv",
+            "content_type": "text/csv"
           }
-        ],
+        }],
         "ordinal": 3,
-        "use_case": "INVOICE_EMAIL"
+        "use_case": "INVOICE_EMAIL_BODY"
       }
     ]
   }

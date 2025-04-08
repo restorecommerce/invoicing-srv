@@ -50,9 +50,9 @@ import {
 } from '@restorecommerce/acs-client';
 import { Subject } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/auth.js';
 import {
-  Payload,
-  RenderRequest,
-  RenderResponse,
+  RenderRequest_Template,
+  RenderRequestList,
+  RenderResponseList,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/rendering.js';
 import {
   PdfRenderingServiceDefinition,
@@ -211,6 +211,10 @@ export class InvoiceService
       code: 500,
       message: '{entity} {id}: PDF-Rendering failed!',
     },
+    NO_TEMPLATE_BODY: {
+      code: 500,
+      message: 'No body defined in template {id}!',
+    },
   };
 
   protected readonly operation_status_codes = {
@@ -359,13 +363,13 @@ export class InvoiceService
     };
   }
 
-  protected throwStatusCode(
+  protected throwStatusCode<T>(
     id?: string,
     entity?: string,
     status?: Status,
     entity_id?: string,
     error?: string,
-  ): Status {
+  ): T {
     throw this.createStatusCode(
       id,
       entity,
@@ -538,6 +542,9 @@ export class InvoiceService
                 id: item.id,
                 shop_id: item.id,
                 counter: item.counter,
+                meta: {
+                  modified: new Date(),
+                }
               })
             ),
             total_count: counters.length,
@@ -637,6 +644,9 @@ export class InvoiceService
           shop_id: shop.id,
           counter: current,
           invoice_number,
+          meta: {
+            modified: new Date(),
+          }
         }],
         total_count: 1,
         subject: request.subject
@@ -926,7 +936,7 @@ export class InvoiceService
                 )
               );
               const address = a.addresses?.get(
-                contact_point?.id
+                contact_point?.physical_address_id
               );
               item.sender = {
                 address,
@@ -1005,9 +1015,9 @@ export class InvoiceService
     return this.default_templates;
   }
 
-  protected async fetchFile(url: string, subject?: Subject): Promise<string> {
+  protected async fetchFile(url: string, subject?: Subject): Promise<Buffer> {
     if (url?.startsWith('file://')) {
-      return fs.readFileSync(url.slice(7)).toString();
+      return fs.readFileSync(url.slice(7));
     }
     else if (url?.startsWith('http')) {
       return fetch(
@@ -1017,7 +1027,11 @@ export class InvoiceService
             Authorization: `Bearer ${subject.token}`
           }
         } : undefined
-      ).then(resp => resp.text())
+      ).then(
+        resp => resp.arrayBuffer()
+      ).then(
+        ab => Buffer.from(ab)
+      )
     }
     else {
       throw this.createStatusCode(
@@ -1036,18 +1050,18 @@ export class InvoiceService
     subject?: Subject,
   ) {
     const locale = locales?.find(
-      a => template.localization?.some(
-        b => b.local_codes?.includes(a)
+      a => template.localizations?.some(
+        b => b.locales?.includes(a)
       )
     ) ?? 'en';
-    const L = template.localization?.find(
-      a => a.local_codes?.includes(locale)
+    const L = template.localizations?.find(
+      a => a.locales?.includes(locale)
     );
     const url = L?.l10n?.url;
     const l10n = url ? await this.fetchFile(url, subject).then(
       text => {
         if (L.l10n.content_type === 'application/json') {
-          return JSON.parse(text);
+          return JSON.parse(text.toString());
         }
         else if (L.l10n.content_type === 'text/csv') {
           return CSV(text, {
@@ -1081,7 +1095,7 @@ export class InvoiceService
     item: Invoice,
     aggregation: AggregatedInvoiceList,
     render_id: string,
-    use_case: TemplateUseCase,
+    use_cases: string[],
     default_templates?: Template[],
     subject?: Subject,
   ) {
@@ -1099,15 +1113,20 @@ export class InvoiceService
       ...(setting?.customer_locales ?? []),
       ...(setting?.shop_locales ?? []),
     ];
-    const templates = shop.template_ids?.map(
-      id => aggregation.templates?.get(id)
-    ).filter(
-      template => template.use_case === use_case
+    const templates = aggregation.templates?.getMany(
+      shop.template_ids
+    )?.filter(
+      template => use_cases?.includes(template.use_case)
     ).sort(
       (a, b) => (a.ordinal ?? 0) - (b.ordinal ?? 0)
     ) ?? [];
+    default_templates = default_templates?.filter(
+      template => use_cases?.includes(template.use_case)
+    ).sort(
+      (a, b) => (a.ordinal ?? 0) - (b.ordinal ?? 0)
+    ) ?? []
 
-    if (templates.length === 0 && default_templates.length > 0) {
+    if (templates.length === 0 && default_templates?.length > 0) {
       templates.push(...default_templates);
     }
     else {
@@ -1115,19 +1134,25 @@ export class InvoiceService
         this.operation_status_codes.NO_TEMPLATES
       );
     }
-
-    const bodies = await Promise.all(
+    
+    const bodies: RenderRequest_Template[][]  = await Promise.all(
       templates.map(
-        template => template.body?.url ? this.fetchFile(
-          template.body.url, subject
-        ) : undefined
-      )
-    );
-    const layouts = await Promise.all(
-      templates.map(
-        template => template.layout?.url ? this.fetchFile(
-          template.layout.url, subject
-        ) : undefined
+        async template => await Promise.all(template.bodies?.map(
+          async (body, i) => ({
+            id: crypto.randomUUID() as string,
+            body: body?.url ? await this.fetchFile(
+              body.url, subject
+            ) : undefined,
+            layout: template.layouts?.[i]?.url ? await this.fetchFile(
+              template.layouts?.[i]?.url, subject
+            ) : undefined
+          })
+        ) ?? this.throwStatusCode<RenderRequest_Template[]>(
+          item.id,
+          "Template",
+          this.status_codes.NO_TEMPLATE_BODY,
+          template.id,
+        ))
       )
     );
     const l10n = await Promise.all(
@@ -1138,33 +1163,25 @@ export class InvoiceService
       )
     );
 
-    const payloads: Payload[] = templates.map(
-      (template, i) => ({
-        content_type: 'text/html',
-        data: packRenderData(
-          aggregation,
-          item,
-        ),
-        templates: marshallProtobufAny({
-          [i]: {
-            body: bodies[i],
-            layout: layouts[i],
-          },
-        }),
-        style_url: template.styles?.find(s => s.url).url,
-        options: l10n[i] ? marshallProtobufAny({
-          locale: l10n[i]._locale,
-          texts: l10n[i]
-        }) : undefined
-      })
-    );
+    const render_request: RenderRequestList = {
+      id: render_id,
+      items: templates.map(
+        (template, i) => ({
+          content_type: 'text/html',
+          data: packRenderData(aggregation, item),
+          templates: bodies[i],
+          style_url: template.styles?.find(s => s.url).url,
+          options: l10n[i] ? marshallProtobufAny({
+            locale: l10n[i]._locale,
+            texts: l10n[i]
+          }) : undefined
+        })
+      ),
+    }
 
     return this.renderingTopic.emit(
       'renderRequest',
-      {
-        id: render_id,
-        payloads,
-      } as RenderRequest
+      render_request,
     );
   }
 
@@ -1209,11 +1226,7 @@ export class InvoiceService
         aggregation => this.generateInvoiceNumbers(aggregation, context)
       );
 
-      const default_templates = await this.loadDefaultTemplates().then(
-        df => df.filter(
-          template => template.use_case === TemplateUseCase.INVOICE_PDF
-        )
-      );
+      const default_templates = await this.loadDefaultTemplates();
       const response = await Promise.all(aggregation.items.map(
         async (item) => {
           const render_id = `invoice/pdf/${item!.id}`;
@@ -1221,7 +1234,7 @@ export class InvoiceService
             item,
             aggregation,
             render_id,
-            TemplateUseCase.INVOICE_PDF,
+            [TemplateUseCase.INVOICE_PDF],
             default_templates,
             request.subject,
           ).then(
@@ -1260,54 +1273,42 @@ export class InvoiceService
                 );
               }
               else {
-                response_map.get(item.id).status = response.status ?? this.createStatusCode(
+                const invoice = response_map.get(item.id);
+                invoice.status = response.status ?? this.createStatusCode(
                   item.id,
                   'Invoice',
                   this.status_codes.PDF_RENDER_FAILED,
                   item.id
                 );
-                return undefined;
+                return invoice;
               }
             }
           )
         }
       )).then(
-        items => items.filter(
-          item => item?.status?.code === 200
-        ).map(
-          item => item.payload
-        )
-      ).then(
-        items => items.length ? this.superUpsert(
-          {
-            items,
-            total_count: items.length,
-            subject: request.subject
-          },
-          context
-        ) : undefined
-      ).then(
-        response => {
-          if (!response) {
-            return {
-              items: [],
-              operation_status: this.operation_status_codes.NO_ITEM,
-            }
-          }
-          else if (response.operation_status?.code !== 200) {
-            return response;
-          }
-
-          response.items?.forEach(
-            item => {
-              const id = item.payload?.id ?? item.status?.id;
-              if (id) {
-                response_map.set(id, item);
-              }
-            }
+        async items => {
+          const valids = items.filter(
+            item => item?.status?.code === 200
+          ).map(
+            item => item?.payload
           );
-
-          const items = [...response_map.values()];
+          if (valids.length) {
+            const updates = await this.superUpsert(
+              {
+                items: valids,
+                total_count: items.length,
+                subject: request.subject
+              }
+            );
+            if (updates.operation_status?.code !== 200) {
+              throw updates.operation_status;
+            }
+            updates.items?.forEach(
+              item => response_map.set(item.payload?.id ?? item.status?.id, item)
+            );
+          }
+          
+          items = [...response_map.values()];
           const operation_status = items.every(
             item => item.status?.code === 200
           ) ? this.operation_status_codes.SUCCESS
@@ -1383,11 +1384,7 @@ export class InvoiceService
         )
       );
 
-      const default_templates = await this.loadDefaultTemplates().then(
-        df => df.filter(
-          template => template.use_case === TemplateUseCase.INVOICE_EMAIL
-        )
-      );
+      const default_templates = await this.loadDefaultTemplates();
       const items = await Promise.all(aggregation.items.map(
         async (item, i) => {
           const render_id = `invoice/email/${item!.id}`;
@@ -1395,7 +1392,7 @@ export class InvoiceService
             item,
             aggregation,
             render_id,
-            TemplateUseCase.INVOICE_EMAIL,
+            [TemplateUseCase.INVOICE_EMAIL_SUBJECT, TemplateUseCase.INVOICE_EMAIL_BODY],
             default_templates,
             request.subject,
           ).then(
@@ -1462,6 +1459,9 @@ export class InvoiceService
       item => ({
         id: item.id,
         withdrawn: true,
+        meta: {
+          modified: new Date()
+        }
       })
     );
 
@@ -1579,7 +1579,7 @@ export class InvoiceService
             meta: invoice.meta,
             options: {
               content_type: 'application/pdf',
-              ...(setting.shop_pdf_bucket_options ?? {}),
+              ...setting.shop_pdf_bucket_options,
             },
             subject,
           };
@@ -1825,33 +1825,28 @@ export class InvoiceService
   }
 
   public async handleRenderResponse(
-    response: RenderResponse,
-    context?: CallContext,
+    response: RenderResponseList
   ) {
     try {
       const [entity] = response.id.split('/');
       if (entity !== 'invoice') return;
-      const content = response.responses.map(
-        r => JSON.parse(r.value.toString())
-      );
-      const errors = content.filter(
-        c => c.error
-      ).map(
-        c => c.error
-      );
 
-      if (errors?.length) {
-        const status: Status = {
-          code: 500,
-          message: errors.join('\n'),
-        };
+      if (response.operation_status?.code !== 200) {
+        this.awaits_render_result.reject(response.id, response.operation_status);
+      }
 
-        this.awaits_render_result.reject(response.id, status);
+      const error = response.items.find(
+        item => item.status?.code !== 200
+      );
+      if (error) {
+        this.awaits_render_result.reject(response.id, error);
       }
       else {
-        const bodies = content.map(
-          (c, i) => c[i]
-        ) as string[];
+        const bodies = response.items.flatMap(
+          item => item.payload.bodies.map(
+            item => item.body.toString(item.charset as BufferEncoding)
+          )
+        );
         this.awaits_render_result.resolve(response.id, bodies);
       }
     }

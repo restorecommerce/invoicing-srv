@@ -93,7 +93,7 @@ const status: Status = {
   message: 'OK',
 }
 
-const mainMeta = {
+const meta = {
   modifiedBy: 'SYSTEM',
   acls: [],
   created: new Date(),
@@ -180,6 +180,7 @@ const countries: CountryResponse[] = [{
     name: 'Deutschland',
     geographicalName: 'Germany',
     economicAreas: [],
+    meta,
   },
   status: {
     id: 'germany',
@@ -196,7 +197,7 @@ const currencies: CurrencyListResponse = {
       name: 'Euro',
       precision: 2,
       symbol: 'EUR',
-      meta: mainMeta,
+      meta,
     },
     status,
   }],
@@ -211,7 +212,8 @@ const taxes: TaxResponse[] = [
       countryId: 'germany',
       rate: 0.19,
       typeId: 'taxType_1',
-      variant: 'MwSt.'
+      variant: 'MwSt.',
+      meta,
     },
     status: {
       id: 'tax_1',
@@ -227,6 +229,7 @@ const manufacturers: ManufacturerResponse[] = [
       id: 'manufacturer_1',
       name: 'Manufacturer1',
       description: 'A manufacturer for testing',
+      meta,
     },
     status: {
       id: 'manufacturer_1',
@@ -240,6 +243,7 @@ const products: ProductResponse[] = [
   {
     payload: {
       id: 'physicalProduct_1',
+      meta,
       active: true,
       shopIds: ['shop_1'],
       tags: [],
@@ -359,6 +363,7 @@ const shops = [
       domains: ['www.shop.com'],
       organizationId: organizations[0].payload?.id,
       shopNumber: '0000000001',
+      meta,
     },
     status,
   }
@@ -438,7 +443,10 @@ const validInvoices: { [key: string]: InvoiceList } = {
               vat: 1.71,
             }
           ]
-        }]
+        }],
+        meta: {
+          modified: new Date()
+        },
       }
     ],
     totalCount: 1,
@@ -450,7 +458,7 @@ const users: { [key: string]: UserResponse } = {
   'root-tech-user': {
     payload: {
       id: 'root-tech-user',
-      meta: mainMeta,
+      meta,
     },
     status,
   },
@@ -479,7 +487,7 @@ const users: { [key: string]: UserResponse } = {
           token: 'superadmin',
         }
       ],
-      meta: mainMeta,
+      meta,
     },
     status,
   },
@@ -519,7 +527,7 @@ const users: { [key: string]: UserResponse } = {
           token: 'admin',
         }
       ],
-      meta: mainMeta,
+      meta,
     },
     status,
   },
@@ -559,7 +567,7 @@ const users: { [key: string]: UserResponse } = {
           token: 'user_1',
         }
       ],
-      meta: mainMeta,
+      meta,
     },
     status,
   },
@@ -671,24 +679,7 @@ const fulfillmentCouriers: FulfillmentCourierListResponse = {
         shopIds: [
           'shop_1'
         ],
-        meta: {
-          created: new Date(),
-          modified: new Date(),
-          modifiedBy: 'SYSTEM',
-          acls: [],
-          owners: [
-            {
-              id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
-              value: 'urn:restorecommerce:acs:model:user.User',
-              attributes: []
-            },
-            {
-              id: 'urn:restorecommerce:acs:names:ownerInstance',
-              value: 'UserID',
-              attributes: []
-            }
-          ]
-        }
+        meta,
       },
       status,
     },
@@ -703,24 +694,7 @@ const fulfillmentCouriers: FulfillmentCourierListResponse = {
         shopIds: [
           'shop_1'
         ],
-        meta: {
-          created: new Date(),
-          modified: new Date(),
-          modifiedBy: 'SYSTEM',
-          acls: [],
-          owners: [
-            {
-              id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
-              value: 'urn:restorecommerce:acs:model:user.User',
-              attributes: []
-            },
-            {
-              id: 'urn:restorecommerce:acs:names:ownerInstance',
-              value: 'UserID',
-              attributes: []
-            }
-          ]
-        }
+        meta,
       },
       status,
     }
@@ -738,17 +712,17 @@ const templates: TemplateListResponse = {
       payload: {
         id: 'template_invoice_body_pdf',
         useCase: TemplateUseCase.INVOICE_PDF,
-        body: {
+        bodies: [{
           url: 'file://./templates/invoice_body.hbs',
           contentType: 'text/html',
-        },
-        layout: {
+        }],
+        layouts: [{
           url: 'file://./templates/invoice_layout.hbs',
           contentType: 'text/html',
-        },
-        localization: [
+        }],
+        localizations: [
           {
-            localCodes: ['en'],
+            locales: ['en'],
             l10n: {
               url: 'file://./templates/l10n.json',
               contentType: 'application/json',
@@ -827,22 +801,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           },
           maxWeight: 2000,
         }],
-        meta: {
-          created: new Date(),
-          modified: new Date(),
-          modifiedBy: 'SYSTEM',
-          acls: [],
-          owners: [{
-            id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
-            value: 'urn:restorecommerce:acs:model:user.User',
-            attributes: [],
-          },
-          {
-            id: 'urn:restorecommerce:acs:names:ownerInstance',
-            value: 'UserID',
-            attributes: [],
-          }]
-        }
+        meta,
       },
       status,
     },{
@@ -896,22 +855,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           },
           maxWeight: 2000,
         }],
-        meta: {
-          created: new Date(),
-          modified: new Date(),
-          modifiedBy: 'SYSTEM',
-          acls: [],
-          owners: [{
-            id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
-            value: 'urn:restorecommerce:acs:model:user.User',
-            attributes: [],
-          },
-          {
-            id: 'urn:restorecommerce:acs:names:ownerInstance',
-            value: 'UserID',
-            attributes: [],
-          }]
-        }
+        meta,
       }
     },{
       payload: {
@@ -964,20 +908,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           },
           maxWeight: 2000,
         }],
-        meta: {
-          created: new Date(),
-          modified: new Date(),
-          modifiedBy: 'SYSTEM',
-          acls: [],
-          owners: [{
-            id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
-            value: 'urn:restorecommerce:acs:model:user.User',
-          },
-          {
-            id: 'urn:restorecommerce:acs:names:ownerInstance',
-            value: 'UserID',
-          }]
-        }
+        meta,
       }
     },{
       payload: {
@@ -1028,19 +959,7 @@ export const fulfillmentProducts: FulfillmentProductListResponse = {
           },
           maxWeight: 2000,
         }],
-        meta: {
-          created: new Date(),
-          modified: new Date(),
-          modifiedBy: 'SYSTEM',
-          owners: [{
-            id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
-            value: 'urn:restorecommerce:acs:model:user.User',
-          },
-          {
-            id: 'urn:restorecommerce:acs:names:ownerInstance',
-            value: 'UserID',
-          }]
-        }
+        meta,
       }
     }
   ],

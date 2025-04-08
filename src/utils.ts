@@ -72,7 +72,7 @@ import {
   Any
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/google/protobuf/any.js';
 import {
-  Payload_Strategy
+  RenderRequest_Strategy
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/rendering.js';
 import {
   type Aggregation,
@@ -177,10 +177,10 @@ export const DefaultSetting = {
   shop_pdf_bucket_options: undefined as any,
   shop_pdf_bucket_disabled: false,
   shop_pdf_render_options: undefined as any,
-  shop_pdf_render_strategy: Payload_Strategy.INLINE,
+  shop_pdf_render_strategy: RenderRequest_Strategy.INLINE,
   shop_puppeteer_options: undefined as any,
   shop_email_render_options: undefined as any,
-  shop_email_render_strategy: Payload_Strategy.INLINE,
+  shop_email_render_strategy: RenderRequest_Strategy.INLINE,
   shop_email_provider: undefined as string,
   shop_email_cc: undefined as string[],
   shop_email_bcc: undefined as string[],
