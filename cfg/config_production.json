@@ -112,7 +112,7 @@
     },
     "pdf_rendering": {
       "fullName": "io.restorecommerce.pdf_rendering.PdfRenderingService",
-      "address": "pdf-render-srv:50051"
+      "address": "pdf-rendering-srv:50051"
     },
     "notification_req": {
       "fullName": "io.restorecommerce.notification_req.NotificationReqService",

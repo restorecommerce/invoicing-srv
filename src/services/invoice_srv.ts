@@ -1095,7 +1095,7 @@ export class InvoiceService
     item: Invoice,
     aggregation: AggregatedInvoiceList,
     render_id: string,
-    use_cases: string[],
+    use_cases: (TemplateUseCase | string)[],
     default_templates?: Template[],
     subject?: Subject,
   ) {
