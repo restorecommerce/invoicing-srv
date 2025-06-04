@@ -1,5 +1,4 @@
 import * as fs from 'node:fs';
-import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { sprintf } from 'sprintf-js';
@@ -138,6 +137,7 @@ import {
   parseSetting,
   marshallProtobufAny,
   packRenderData,
+  makeID,
 } from '../utils.js';
 
 
@@ -353,11 +353,11 @@ export class InvoiceService
     return {
       id,
       code: Number.isInteger(status?.code) ? status.code : 500,
-      message: status?.message?.replace(
+      message: status?.message?.replaceAll(
         '{error}', error ?? 'undefined'
-      ).replace(
+      ).replaceAll(
         '{entity}', entity ?? 'undefined'
-      ).replace(
+      ).replaceAll(
         '{id}', entity_id ?? 'undefined'
       ) ?? 'Unknown status',
     };
@@ -386,9 +386,9 @@ export class InvoiceService
   ): OperationStatus {
     return {
       code: Number.isInteger(status?.code) ? status.code : 500,
-      message: status?.message?.replace(
+      message: status?.message?.replaceAll(
         '{entity}', entity ?? 'undefined'
-      ).replace(
+      ).replaceAll(
         '{id}', id ?? 'undefined'
       ) ?? 'Unknown status',
     };
@@ -978,6 +978,8 @@ export class InvoiceService
               };
             }
 
+            delete item.sender?.address?.meta;
+            delete item.recipient?.address?.meta;
             item.user_id ??= subject?.id;
           }
         );
@@ -1139,7 +1141,7 @@ export class InvoiceService
       templates.map(
         async template => await Promise.all(template.bodies?.map(
           async (body, i) => ({
-            id: crypto.randomUUID() as string,
+            id: makeID(),
             body: body?.url ? await this.fetchFile(
               body.url, subject
             ) : undefined,
@@ -1257,15 +1259,14 @@ export class InvoiceService
           ).then(
             response => {
               if (response.status?.code === 200) {
-                const invoice = item;
-                const shop = aggregation.shops.get(invoice.shop_id);
+                const shop = aggregation.shops.get(item.shop_id);
                 const setting = this.resolveSettings(
                   aggregation.settings.get(
                     shop.setting_id
                   )
                 );
                 return this.renderPdf(
-                  invoice,
+                  item,
                   response.payload.body,
                   setting,
                   this.tech_user ?? request.subject,
@@ -1283,16 +1284,22 @@ export class InvoiceService
                 return invoice;
               }
             }
+          ).catch(
+            (err) => this.catchStatusError<RenderResult>(err, { payload: item })
           )
         }
       )).then(
         async items => {
           const valids = items.filter(
-            item => item?.status?.code === 200
+            item => {
+              response_map.set(item.payload?.id ?? item.status?.id, item);
+              return item?.status?.code === 200
+            }
           ).map(
             item => item?.payload
           );
           if (valids.length) {
+            this.logger.info('Update:', { valids });
             const updates = await this.superUpsert(
               {
                 items: valids,
@@ -1481,7 +1488,7 @@ export class InvoiceService
     const buffer = Buffer.from(body);
     const stream = Readable.from(buffer);
     try {
-      const document_id = randomUUID();
+      const document_id = makeID();
       const transformer = new Transform({
         objectMode: true,
         transform: (chunk, _, done) => {
@@ -1533,7 +1540,8 @@ export class InvoiceService
           );
           return invoice;
         }
-      ).then(
+      );
+      /*.then(
         invoice => this.superUpsert(
           {
             items: [invoice],
@@ -1543,8 +1551,14 @@ export class InvoiceService
           context,
         )
       ).then(
-        resp => resp.items.pop().payload
-      );
+        resp => {
+          this.logger?.debug('HTML', {resp});
+          if (resp.operation_status?.code !== 200) {
+            throw resp.operation_status;
+          }
+          return resp.items.pop().payload
+        }
+      );*/
     }
     finally {
       stream.destroy();
@@ -1562,7 +1576,7 @@ export class InvoiceService
   ) {
     const stream = Readable.from(buffer);
     try {
-      const document_id = randomUUID();
+      const document_id = makeID();
       const key = [
         invoice.shop_id,
         invoice.id,
@@ -1615,7 +1629,8 @@ export class InvoiceService
           );
           return invoice;
         }
-      ).then(
+      );
+      /*.then(
         invoice => this.superUpsert(
           {
             items: [invoice],
@@ -1625,8 +1640,13 @@ export class InvoiceService
           context,
         )
       ).then(
-        resp => resp.items.pop().payload
-      );
+        resp => {
+          if (resp.operation_status?.code !== 200) {
+            throw resp.operation_status;
+          }
+          return resp.items.pop().payload
+        }
+      );*/
     }
     finally {
       stream.destroy();
@@ -1653,7 +1673,7 @@ export class InvoiceService
         );
       }
 
-      const document_id = randomUUID();
+      const document_id = makeID();
       const timestamp = new Date().toISOString();
       const bucket = setting.shop_pdf_bucket;
       const key = [

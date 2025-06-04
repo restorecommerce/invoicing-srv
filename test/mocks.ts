@@ -95,9 +95,6 @@ const status: Status = {
 
 const meta = {
   modifiedBy: 'SYSTEM',
-  acls: [],
-  created: new Date(),
-  modified: new Date(),
   owners: [
     {
       id: 'urn:restorecommerce:acs:names:ownerIndicatoryEntity',
@@ -675,7 +672,7 @@ const fulfillmentCouriers: FulfillmentCourierListResponse = {
         description: '',
         logo: 'DHL.png',
         website: 'https://www.dhl.com/',
-        stubType: 'DHLSoap',
+        api: 'DHLSoap',
         shopIds: [
           'shop_1'
         ],
@@ -690,7 +687,7 @@ const fulfillmentCouriers: FulfillmentCourierListResponse = {
         description: '',
         logo: 'DHL.png',
         website: 'https://www.dhl.com/',
-        stubType: 'DHLSoap',
+        api: 'DHLSoap',
         shopIds: [
           'shop_1'
         ],

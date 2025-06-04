@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   Invoice,
   InvoiceList,
@@ -81,6 +82,7 @@ import {
   ArrayResolver,
   ResourceMap,
 } from './experimental/index.js';
+import * as _ from 'lodash-es';
 
 export const DefaultUrns = {
   shop_default_bucket:                'urn:restorecommerce:shop:setting:invoice:bucket:default',        // [string]: overrides default bucket for file storage - default: cfg -> 'invoice'
@@ -202,6 +204,8 @@ export type InvoiceNumber = {
   increment?: number;
   invoice_number?: string;
 };
+
+export const makeID = () => randomUUID().replaceAll('-', '');
 
 const mergeProductVariantRecursive = (
   nature: ProductNature,
@@ -410,7 +414,7 @@ export const packRenderData = (
   const resolved = {
     invoice: resolveInvoice(
       aggregation,
-      invoice
+      _.cloneDeep(invoice)
     ),
   };
   const buffer = marshallProtobufAny(resolved);

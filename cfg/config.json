@@ -7,11 +7,15 @@
       "prettyPrint": true
     },
     "fieldOptions": {
-      "omitFields": [
-        "request.context.subject.value.data",
-        "request.context.security.value.data",
-        "request.context.resources.[0].value.data",
-        "decodedMsg.items.[0].payload.bodies.[0].body.data"
+      "maskFields": [
+        "password",
+        "request.password",
+        "request.token",
+        "items.[0].password",
+        "request.context.subject.value",
+        "request.context.security.value",
+        "request.context.resources.[0].value",
+        "decodedMsg.items.[0].payload.bodies.[0].body"
       ]
     }
   },
@@ -142,7 +146,9 @@
       "meta.modified",
       "timestamp",
       "from_date",
-      "to_date"
+      "to_date",
+      "sections.[0].positions.[0].from_date",
+      "sections.[0].positions.[0].to_date"
     ]
   },
   "urns": {
@@ -225,6 +231,9 @@
         "messageObject": "io.restorecommerce.invoice.Invoice"
       },
       "invoiceDeleted": {
+        "messageObject": "io.restorecommerce.resourcebase.Deleted"
+      },
+      "invoiceDeletedAll": {
         "messageObject": "io.restorecommerce.resourcebase.Deleted"
       },
       "invoiceFailed": {
