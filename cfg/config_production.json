@@ -116,7 +116,7 @@
     },
     "notification_req": {
       "fullName": "io.restorecommerce.notification_req.NotificationReqService",
-      "address": "notification-srv"
+      "address": "notification-srv:50051"
     }
   },
   "server": {

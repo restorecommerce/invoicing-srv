@@ -1035,12 +1035,32 @@ export class InvoiceService
         ab => Buffer.from(ab)
       )
     }
+    else if (url?.startsWith('//')) {
+      const splits = url.match(/[^\/]+/g);
+      const bucket = splits[0];
+      const key = splits.slice(1).join('/');
+      for await(const chunk of this.ostorage_service.get({
+        bucket,
+        key,
+        download: true,
+        subject,
+      })) {
+        if (chunk.response?.status?.code !== 200) {
+          throw chunk.response?.status ?? this.createStatusCode(
+            undefined,
+            'File',
+            this.status_codes.NOT_FOUND,
+            url,
+          );
+        }
+        return chunk.response.payload.object;
+      }
+    }
     else {
       throw this.createStatusCode(
         undefined,
-        'Template',
+        'File',
         this.status_codes.PROTOCOL_NOT_SUPPORTED,
-        undefined,
         url,
       );
     }
@@ -1253,9 +1273,7 @@ export class InvoiceService
                 code: 200,
                 message: 'OK',
               }
-            })
-          ).catch(
-            (err) => this.catchStatusError<RenderResult>(err, { payload: item })
+            }),
           ).then(
             response => {
               if (response.status?.code === 200) {
@@ -1283,10 +1301,10 @@ export class InvoiceService
                 );
                 return invoice;
               }
-            }
+            },
           ).catch(
-            (err) => this.catchStatusError<RenderResult>(err, { payload: item })
-          )
+            (err: any) => this.catchStatusError<RenderResult>(err, { payload: item })
+          );
         }
       )).then(
         async items => {
@@ -1392,7 +1410,7 @@ export class InvoiceService
       );
 
       const default_templates = await this.loadDefaultTemplates();
-      const items = await Promise.all(aggregation.items.map(
+      const items: InvoiceResponse[] = await Promise.all(aggregation.items.map(
         async (item, i) => {
           const render_id = `invoice/email/${item!.id}`;
           return await this.emitRenderRequest(
@@ -1419,7 +1437,7 @@ export class InvoiceService
               const title = bodies.shift();
               const body = bodies.join('');
 
-              return this.sendNotification(
+              return await this.sendNotification(
                 item,
                 body,
                 setting,
@@ -1427,17 +1445,40 @@ export class InvoiceService
                 request.items[i].document_ids,
                 this.tech_user ?? request.subject,
                 context,
+              ).then(
+                payload => ({ 
+                  payload,
+                  status: this.createStatusCode(
+                    item.id,
+                    'Invoice',
+                    this.status_codes.OK,
+                    item.id,
+                  )
+                })
               );
-            }
+            },
+          ).catch(
+            (err: any) => this.catchStatusError(err, { payload: item })
           )
         }
       ));
 
       const response = await this.superUpdate({
-        items,
+        items: items.filter(
+          item => item.status?.code === 200
+        ).map(
+          item => item.payload
+        ),
         subject: request.subject
       }, context);
-      const status = response.items?.map(item => item.status);
+      const status = [
+        response.items?.map(item => item.status),
+        items.filter(
+          item => item.status?.code !== 200
+        ).map(
+          item => item.status
+        )
+      ].flat().filter(i => i);
 
       return {
         status,
@@ -1528,10 +1569,7 @@ export class InvoiceService
           invoice.documents.push(
             {
               id: document_id,
-              url: [
-                setting.shop_bucket_endpoint,
-                obj.url.replace(/^\/\//, ''),
-              ].join('/'),
+              url: obj.url,
               caption: filename,
               filename,
               bytes: buffer.byteLength,
@@ -1617,10 +1655,7 @@ export class InvoiceService
           invoice.documents.push(
             {
               id: document_id,
-              url: [
-                setting.shop_bucket_endpoint,
-                obj.url.replace(/^\/\//, ''),
-              ].join('/'),
+              url: obj.url,
               caption: filename,
               filename,
               bytes: buffer.byteLength,
@@ -1721,7 +1756,8 @@ export class InvoiceService
             invoice.documents.push({
               id: timestamp,
               url: [
-                setting.shop_bucket_endpoint,
+                //setting.shop_bucket_endpoint,
+                '/',
                 bucket,
                 key,
               ].join('/'),
@@ -1783,31 +1819,12 @@ export class InvoiceService
             'url'
           );
         }
-
-        return await fetch(
+        return await this.fetchFile(
           doc.url,
-          {
-            headers: {
-              Authorization: `Bearer ${subject.token}`
-            }
-          }
+          subject,
         ).then(
-          async (f) => {
-            if (!f.ok || f.status !== 200) {
-              const text = await f.text().catch();
-              throw this.createStatusCode(
-                invoice.id,
-                'Document',
-                this.status_codes.FETCH_FAILED,
-                doc.url,
-                `${f.status}, ${f.statusText}, ${text}`,
-              );
-            }
-            return f.arrayBuffer()
-          }
-        ).then(
-          ab => ({
-            buffer: Buffer.from(ab),
+          buffer => ({
+            buffer,
             filename: doc.filename,
             content_type: doc.content_type,
           })
@@ -1851,13 +1868,13 @@ export class InvoiceService
       const [entity] = response.id.split('/');
       if (entity !== 'invoice') return;
 
-      if (response.operation_status?.code !== 200) {
+      if (response.operation_status?.code >= 300) {
         this.awaits_render_result.reject(response.id, response.operation_status);
       }
 
       const error = response.items.find(
         item => item.status?.code !== 200
-      );
+      )?.status;
       if (error) {
         this.awaits_render_result.reject(response.id, error);
       }

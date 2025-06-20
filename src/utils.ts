@@ -77,12 +77,12 @@ import {
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/rendering.js';
 import {
   type Aggregation,
-  resolve,
   Resolver,
   ArrayResolver,
   ResourceMap,
+  ResolverMap,
+  Resolved,
 } from './experimental/index.js';
-import * as _ from 'lodash-es';
 
 export const DefaultUrns = {
   shop_default_bucket:                'urn:restorecommerce:shop:setting:invoice:bucket:default',        // [string]: overrides default bucket for file storage - default: cfg -> 'invoice'
@@ -244,6 +244,54 @@ const mergeProductVariant = (
     [key]: {
       variants: [variant]
     }
+  }
+};
+
+export function resolve<T, M extends ResolverMap>(
+  entity: T,
+  resolverMap?: M,
+): Resolved<T & M, M>;
+export function resolve<T, M extends ResolverMap>(
+  entity: T[],
+  resolverMap?: M[],
+): Resolved<T & M, M>[] {
+  if (!entity) {
+    return;
+  }
+  else if (Array.isArray(entity)) {
+    return entity.map(value => resolve(value, resolverMap[0]));
+  }
+  else {
+    const copy = { ...(entity as any) };
+    return Object.assign(
+      copy,
+      ...Object.entries(resolverMap ?? {}).map(
+        ([k, r]) => {
+          const id = typeof r?.[0] === 'string' && copy[r[0]];
+          if (!id) {
+            return {
+              [k]: resolve(copy[k], r)
+            };
+          }
+          else if (Array.isArray(id)) {
+            return {
+              [k]: id.map(
+                id => r[2]
+                  ? resolve(r[1]?.get(id.toString()), r[2])
+                  : r[1]?.get(id.toString())
+              )
+            };
+          }
+          else if (typeof id === 'string') {
+            return {
+              [k]: r[2]
+                ? resolve(r[1]?.get(id), r[2])
+                : r[1]?.get(id)
+            };
+          }
+        }
+      ).filter(e => e)
+    );
   }
 };
 
@@ -414,7 +462,7 @@ export const packRenderData = (
   const resolved = {
     invoice: resolveInvoice(
       aggregation,
-      _.cloneDeep(invoice)
+      invoice
     ),
   };
   const buffer = marshallProtobufAny(resolved);

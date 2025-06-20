@@ -12,10 +12,20 @@
         "request.password",
         "request.token",
         "items.[0].password",
+        "items.[0].payload.bodies.[0].body.data",
+        "items.[0].templates.[0].body.data",
+        "items.[0].templates.[0].layout.data",
+        "items.[0].data.value.data",
+        "items.[0].options.value.data",
         "request.context.subject.value",
         "request.context.security.value",
         "request.context.resources.[0].value",
-        "decodedMsg.items.[0].payload.bodies.[0].body"
+        "request.attachments.[0].buffer.data",
+        "decodedMsg.items.[0].payload.bodies.[0].body.data",
+        "decodedMsg.items.[0].templates.[0].body.data",
+        "decodedMsg.items.[0].templates.[0].layout.data",
+        "decodedMsg.items.[0].data.value.data",
+        "decodedMsg.items.[0].options.value.data"
       ]
     }
   },
@@ -429,7 +439,7 @@
     "Setting": {
       "shop_default_bucket": "invoices",
       "shop_html_bucket_disabled": true,
-      "shop_bucket_endpoint": "http://localhost:5000/storage"
+      "shop_bucket_endpoint": "http://facade:5000/storage"
     },
     "Templates": [
       {

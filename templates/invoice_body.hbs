@@ -98,17 +98,17 @@
       {{#if position.unit_price.sale }}
       <td class="vclAlignRight">{{
         nfc position.unit_price.sale_price
-        cc=position.unit_price.currency.symbol
+        cc=position.unit_price.currency.code
       }}</td>
       {{else}}
       <td class="vclAlignRight">{{
         nfc position.unit_price.regular_price
-        cc=position.unit_price.currency.symbol
+        cc=position.unit_price.currency.code
       }}</td>
       {{/if}}
       <td class="vclAlignRight">{{
         nfc position.amount.gross
-        cc=position.amount.currency.symbol
+        cc=position.amount.currency.code
       }}</td>
     </tr>
     {{/each}}
@@ -119,17 +119,17 @@
     {{#each invoice.total_amounts as | amount |}}
     <tr class="vclSumTableTotal">
       <td colspan="4">{{t 'l10n.invoice.gross'}}</td>
-      <td colspan="2" class="vclAlignRight">{{nfc amount.gross cc=amount.currency.symbol}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc amount.gross cc=amount.currency.code}}</td>
     </tr>
     {{#each amount.vats as | vat |}}
     <tr class="vclNoBorder">
       <td colspan="4">+ {{vat.tax.name}}</td>
-      <td colspan="2" class="vclAlignRight">{{nfc vat.vat cc=amount.currency.symbol}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc vat.vat cc=amount.currency.code}}</td>
     </tr>
     {{/each}}
     <tr class="vclSumTableTotal">
       <td colspan="4">{{t 'l10n.invoice.total'}}</td>
-      <td colspan="2" class="vclAlignRight">{{nfc amount.net cc=amount.currency.symbol}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc amount.net cc=amount.currency.code}}</td>
     </tr>
     <tr class="vclNoBorder">
       <td colspan="6">&nbsp;</td>
