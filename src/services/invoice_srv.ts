@@ -1039,6 +1039,7 @@ export class InvoiceService
       const splits = url.match(/[^/]+/g);
       const bucket = splits[0];
       const key = splits.slice(1).join('/');
+      const buffer = new Array<Buffer>();
       for await(const chunk of this.ostorage_service.get({
         bucket,
         key,
@@ -1053,8 +1054,9 @@ export class InvoiceService
             url,
           );
         }
-        return chunk.response.payload.object;
+        buffer.push(chunk.response.payload.object);
       }
+      return Buffer.concat(buffer);
     }
     else {
       throw this.createStatusCode(
@@ -1847,7 +1849,7 @@ export class InvoiceService
             ...(setting.shop_email_bcc ?? []),
           ],
         },
-        subject: title ?? invoice.invoice_number,
+        subject: title ?? invoice.invoice_number ?? 'Invoice',
         body,
         attachments,
       },

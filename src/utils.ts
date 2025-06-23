@@ -270,7 +270,7 @@ export function resolve<T, M extends ResolverMap>(
           const id = typeof r?.[0] === 'string' && copy[r[0]];
           if (!id) {
             return {
-              [k]: resolve(copy[k], r)
+              [k]: r?.[2] ? resolve(copy[k], r[2]) : resolve(copy[k], r)
             };
           }
           else if (Array.isArray(id)) {
@@ -364,9 +364,13 @@ export const resolveInvoice = (
       }
     )
   };
-  const tax_resolver = Resolver('tax_id', aggregation.taxes, {
-    type: Resolver('type_id', aggregation.tax_types),
-  });
+  const tax_resolver = Resolver(
+    'tax_id',
+    aggregation.taxes,
+    {
+      type: Resolver('type_id', aggregation.tax_types),
+    }
+  );
   const amount_resolver = {
     currency: currency_resolver,
     vats: [{
