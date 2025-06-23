@@ -1036,7 +1036,7 @@ export class InvoiceService
       )
     }
     else if (url?.startsWith('//')) {
-      const splits = url.match(/[^\/]+/g);
+      const splits = url.match(/[^/]+/g);
       const bucket = splits[0];
       const key = splits.slice(1).join('/');
       for await(const chunk of this.ostorage_service.get({

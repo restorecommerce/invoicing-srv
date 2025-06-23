@@ -70,7 +70,7 @@
 <table id="items" class="vclTable vclSumTable">
   <thead>
     <tr>
-      <th></th>
+      <!-- <th></th> -->
       <th>{{t 'l10n.invoice.position'}}</th>
       <th>{{t 'l10n.invoice.name'}}</th>
       <th>{{t 'l10n.invoice.quantity'}}</th>
@@ -84,7 +84,7 @@
     {{#each section.positions as | position |}}
     <tr>
       <td>{{increment @index}}</td>
-      <td>{{position.id}}</td>
+      <!-- <td>{{position.id}}</td> -->
       <td>{{
         position.product_item.product.product.name
       }}{{
