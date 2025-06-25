@@ -97,7 +97,7 @@
       }}{{
         position.product_item.product.bundle.name
       }}{{
-        position.fulfillment_item.fulfillment_product.name
+        position.fulfillment_item.product.name
       }}{{
         position.manual_item.name
       }}</td>
@@ -126,7 +126,7 @@
     {{#each invoice.total_amounts as | amount |}}
     <tr class="vclSumTableTotal">
       <td colspan="4">{{t 'l10n.invoice.gross'}}:</td>
-      <td colspan="2" class="vclAlignRight">{{nfc amount.gross cc=amount.currency.code}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc amount.net cc=amount.currency.code}}</td>
     </tr>
     {{#each amount.vats as | vat |}}
     <tr class="vclNoBorder">
@@ -136,7 +136,7 @@
     {{/each}}
     <tr class="vclSumTableTotal">
       <td colspan="4">{{t 'l10n.invoice.total'}}:</td>
-      <td colspan="2" class="vclAlignRight">{{nfc amount.net cc=amount.currency.code}}</td>
+      <td colspan="2" class="vclAlignRight">{{nfc amount.gross cc=amount.currency.code}}</td>
     </tr>
     <tr class="vclNoBorder">
       <td colspan="6">&nbsp;</td>

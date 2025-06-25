@@ -133,7 +133,7 @@ export type InvoiceAggregationTemplate = {
   manufacturers?: ResourceMap<Manufacturer>;
   categories?: ResourceMap<ProductCategory>;
   prototypes?: ResourceMap<ProductPrototype>;
-  fulfillments_products?: ResourceMap<FulfillmentProduct>;
+  fulfillment_products?: ResourceMap<FulfillmentProduct>;
   locales?: ResourceMap<Locale>;
   timezones?: ResourceMap<Timezone>;
   currencies?: ResourceMap<Currency>;
@@ -380,10 +380,9 @@ export const resolveInvoice = (
   const fulfillment_product_resolver = {
     product: Resolver(
       'product_id',
-      aggregation.fulfillments_products,
+      aggregation.fulfillment_products,
       {
         tax: tax_resolver,
-        country: Resolver('country_id', aggregation.countries),
       }
     ),
   };
