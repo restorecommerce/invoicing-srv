@@ -1722,28 +1722,30 @@ export class InvoiceService
         `${invoice.invoice_number}.pdf`
       ].join(setting.shop_bucket_key_delimiter);
       await this.pdf_rendering_service.render({
-        combined: {
-          output: {
-            meta_data: {
-              creator: invoice.user_id,
-              producer: invoice.shop_id,
-              title: invoice.invoice_number,
-            },
-            /*
-            upload_options: {
-              bucket: setting.shop_pdf_bucket,
-              key,
-              content_disposition: 'application/pdf',
-            }
-            */
-          },
+        individual: {
           data: [
             {
-              source: {
-                html: body,
+              data: {
+                source: {
+                  html: body,
+                },
+                options: {
+                  puppeteer_options: setting.shop_puppeteer_options,
+                },
               },
-              options: {
-                puppeteer_options: setting.shop_puppeteer_options,
+              output: {
+                meta_data: {
+                  creator: invoice.user_id,
+                  producer: invoice.shop_id,
+                  title: invoice.invoice_number,
+                },
+                /*
+                upload_options: {
+                  bucket: setting.shop_pdf_bucket,
+                  key,
+                  content_disposition: 'application/pdf',
+                }
+                */
               },
             }
           ]
@@ -1754,7 +1756,7 @@ export class InvoiceService
           if (resp.operation_status?.code !== 200) {
             throw resp.operation_status;
           }
-          else if (resp.combined.payload?.upload_result) {
+          else if (resp.combined?.payload?.upload_result) {
             const filename = basename(key);
             invoice.documents ??= [];
             invoice.documents.push({
@@ -1771,14 +1773,26 @@ export class InvoiceService
               content_type: 'application/pdf',
             } as File);
           }
-          else if (resp.combined.payload?.pdf?.data) {
+          else if (resp.combined?.payload?.pdf?.data) {
+            const { payload } = resp.combined;
             await this.storagePDFRenderResponse(
               invoice,
-              resp.combined.payload.pdf.data,
+              payload.pdf.data,
               setting,
               subject,
               context,
             );
+          }
+          else if (resp.individual) {
+            for (const { payload } of resp.individual.RenderingResponse) {
+              await this.storagePDFRenderResponse(
+                invoice,
+                payload.pdf.data,
+                setting,
+                subject,
+                context,
+              );
+            }
           }
         }
       );
