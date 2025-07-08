@@ -97,6 +97,7 @@ export const DefaultUrns = {
   shop_pdf_render_options:            'urn:restorecommerce:shop:setting:invoice:pdf:render:options',    // [json]: override pdf rendering options - default: cfg -> null
   shop_pdf_render_strategy:           'urn:restorecommerce:shop:setting:invoice:pdf:render:strategy',   // [enum]: override pdf rendering strategy - default: cfg -> INLINE
   shop_puppeteer_options:             'urn:restorecommerce:shop:setting:invoice:puppeteer:options',     // [json]: override pdf puppeteer options - default: cfg -> null
+  shop_puppeteer_wait:                'urn:restorecommerce:shop:setting:invoice:puppeteer:wait',        // [json]: override pdf puppeteer wait - default: cfg -> null
   shop_email_render_options:          'urn:restorecommerce:shop:setting:invoice:email:render:options',  // [json]: override email rendering options - default: cfg -> null
   shop_email_render_strategy:         'urn:restorecommerce:shop:setting:invoice:email:render:strategy', // [enum]: override email rendering strategy - default: cfg -> INLINE
   shop_email_provider:                'urn:restorecommerce:shop:setting:invoice:email:provider',        // [string]: override to supported email provider - default: cfg -> null
@@ -150,6 +151,7 @@ const SettingParser: { [key: string]: (value: string) => any } = {
   shop_pdf_bucket_options: JSON.parse,
   shop_pdf_render_options: JSON.parse,
   shop_puppeteer_options: JSON.parse,
+  shop_puppeteer_wait: Number.parseInt,
   shop_invoice_number_start: Number.parseInt,
   shop_invoice_number_increment: Number.parseInt,
   shop_email_render_options: JSON.parse,
@@ -181,6 +183,7 @@ export const DefaultSetting = {
   shop_pdf_render_options: undefined as any,
   shop_pdf_render_strategy: RenderRequest_Strategy.INLINE,
   shop_puppeteer_options: undefined as any,
+  shop_puppeteer_wait: undefined as number,
   shop_email_render_options: undefined as any,
   shop_email_render_strategy: RenderRequest_Strategy.INLINE,
   shop_email_provider: undefined as string,

@@ -1722,33 +1722,32 @@ export class InvoiceService
         `${invoice.invoice_number}.pdf`
       ].join(setting.shop_bucket_key_delimiter);
       await this.pdf_rendering_service.render({
-        individual: {
+        combined: {
           data: [
             {
-              data: {
-                source: {
-                  html: body,
-                },
-                options: {
-                  puppeteer_options: setting.shop_puppeteer_options,
-                },
+              source: {
+                html: body,
               },
-              output: {
-                meta_data: {
-                  creator: invoice.user_id,
-                  producer: invoice.shop_id,
-                  title: invoice.invoice_number,
-                },
-                /*
-                upload_options: {
-                  bucket: setting.shop_pdf_bucket,
-                  key,
-                  content_disposition: 'application/pdf',
-                }
-                */
+              options: {
+                puppeteer_options: setting.shop_puppeteer_options,
+                wait_after_load_time: setting.shop_puppeteer_wait ?? 5000,
               },
+            },
+          ],
+          output: {
+            meta_data: {
+              creator: invoice.user_id,
+              producer: invoice.shop_id,
+              title: invoice.invoice_number,
+            },
+            /*
+            upload_options: {
+              bucket: setting.shop_pdf_bucket,
+              key,
+              content_disposition: 'application/pdf',
             }
-          ]
+            */
+          },
         },
         subject,
       }).then(
