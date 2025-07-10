@@ -145,6 +145,11 @@ describe('The Invoicing Service:', function() {
         expect(
           response.items!.every(item => item.status?.code === 200)
         ).toBeTruthy();
+        expect(
+          response.items!.every(
+            item => item.payload!.invoiceNumber!.startsWith('test-')
+          )
+        ).toBeTruthy();
       },
       30000
     );

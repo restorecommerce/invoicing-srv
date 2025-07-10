@@ -462,7 +462,7 @@ export class InvoiceService
     const settings = new Map(
       shops.all.map(
         shop => [
-          shop.id,
+          shop.setting_id,
           this.resolveSettings(
             aggregation.settings.get(
               shop.setting_id
@@ -475,6 +475,8 @@ export class InvoiceService
     await Promise.all(aggregation.items?.map(async (item) => {
       const shop = shops.get(item.shop_id);
       const setting = settings.get(shop.setting_id);
+      this.logger.warn('SHOP:', setting);
+      this.logger.warn('SETTING:', setting);
       const key = `invoice:counter:${shop.id}`;
       const increment = setting?.shop_invoice_number_increment ?? 1;
       const current = await this.redis.exists(
@@ -518,7 +520,6 @@ export class InvoiceService
           }
         }
       );
-
       const pattern = setting?.shop_invoice_number_pattern ?? 'invoice-%010i';
       const invoice_number = pattern ? sprintf(pattern, current) : current.toString();
       item.invoice_number = invoice_number;
@@ -635,7 +636,7 @@ export class InvoiceService
       }
     );
 
-    const pattern = setting?.shop_invoice_number_pattern ?? 'i-%010i';
+    const pattern = setting?.shop_invoice_number_pattern ?? 'invoice-%010i';
     const invoice_number = sprintf(pattern, current);
     await this.invoice_number_srv.upsert(
       {

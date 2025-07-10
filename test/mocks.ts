@@ -352,6 +352,25 @@ const organizations = [
   }
 ] as OrganizationResponse[];
 
+const settings = {
+  items: [{
+    payload: {
+      id: 'shop_1_setting',
+      settings: [
+        {
+          id: 'urn:restorecommerce:shop:setting:invoice:number:pattern',
+          value: 'test-%010i'
+        }
+      ]
+    }
+  }],
+  totalCount: 1,
+  operationStatus: {
+    code: 200,
+    message: 'Mocked!',
+  }
+} as SettingListResponse;
+
 const shops = [
   {
     payload: {
@@ -361,6 +380,7 @@ const shops = [
       domains: ['www.shop.com'],
       organizationId: organizations[0].payload?.id,
       shopNumber: '0000000001',
+      settingId: 'shop_1_setting',
       meta,
     },
     status,
@@ -737,14 +757,6 @@ const templates: TemplateListResponse = {
     message: 'Mocked!',
   }
 };
-
-const settings: SettingListResponse = {
-  totalCount: 0,
-  operationStatus: {
-    code: 200,
-    message: 'Mocked!',
-  }
-} 
 
 export const fulfillmentProducts: FulfillmentProductListResponse = {
   items: [
