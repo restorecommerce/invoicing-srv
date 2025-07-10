@@ -475,8 +475,6 @@ export class InvoiceService
     await Promise.all(aggregation.items?.map(async (item) => {
       const shop = shops.get(item.shop_id);
       const setting = settings.get(shop.setting_id);
-      this.logger.warn('SHOP:', setting);
-      this.logger.warn('SETTING:', setting);
       const key = `invoice:counter:${shop.id}`;
       const increment = setting?.shop_invoice_number_increment ?? 1;
       const current = await this.redis.exists(
