@@ -410,6 +410,9 @@ export const resolveInvoice = (
       recipient: {
         address: address_resolver
       },
+      billing_address: {
+        address: address_resolver
+      },
       customer: Resolver('customer_id', aggregation.customers, {
         commercial: organization_resolver,
         public_sector: organization_resolver,
