@@ -166,7 +166,9 @@ const businessAddresses: Address[] = [{
     countryId: 'germany'
   },
   contact: {
-    email: 'info@restorecommerce.io'
+    name: 'Jack Black',
+    email: 'info@restorecommerce.io',
+    phone: '00000000000'
   }
 }];
 
@@ -324,7 +326,9 @@ const contactPoints: ContactPointResponse[] = [
     payload: {
       id: 'contactPoint_1',
       contactPointTypeIds: [
-        'legal'
+        'legal',
+        'shipping',
+        'billing',
       ],
       name: 'Contact Point 1',
       description: 'A mocked Contact Point for testing',

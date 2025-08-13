@@ -975,7 +975,7 @@ export class InvoiceService
                 )
               );
               const address = a.addresses?.get(
-                contact_point?.id
+                contact_point?.physical_address_id
               );
               item.recipient = {
                 address,
@@ -1005,7 +1005,7 @@ export class InvoiceService
                 )
               );
               const address = a.addresses?.get(
-                contact_point?.id
+                contact_point?.physical_address_id
               );
               item.billing_address = {
                 address,
