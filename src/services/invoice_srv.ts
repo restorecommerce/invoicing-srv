@@ -882,6 +882,9 @@ export class InvoiceService
               aggregation.items.map(
                 item => item?.sender?.address?.id
               ),
+              aggregation.items.map(
+                item => item?.billing_address?.address?.id
+              ),
             ),
             container: 'addresses',
             entity: 'Address',
@@ -912,6 +915,9 @@ export class InvoiceService
               ),
               aggregation.items.map(
                 item => item?.sender?.address?.country_id
+              ),
+              aggregation.items.map(
+                item => item?.billing_address?.address?.country_id
               ),
             ),
             container: 'countries',
@@ -965,7 +971,7 @@ export class InvoiceService
                 ).filter(c => c)
               )?.find(
                 cp => cp.contact_point_type_ids?.includes(
-                  this.contact_point_type_ids.billing
+                  this.contact_point_type_ids.shipping
                 )
               );
               const address = a.addresses?.get(
@@ -981,8 +987,41 @@ export class InvoiceService
               };
             }
 
+            if (!item.billing_address) {
+              const customer = a.customers?.get(
+                item.customer_id
+              );
+              const contact_point = a.contact_points?.getMany(
+                [].concat(
+                  a.organizations?.get(
+                    customer?.commercial?.organization_id
+                    ?? customer?.public_sector?.organization_id
+                  )?.contact_point_ids,
+                  customer?.private?.contact_point_ids
+                ).filter(c => c)
+              )?.find(
+                cp => cp.contact_point_type_ids?.includes(
+                  this.contact_point_type_ids.billing
+                )
+              );
+              const address = a.addresses?.get(
+                contact_point?.id
+              );
+              item.billing_address = {
+                address,
+                contact: {
+                  email: contact_point.email,
+                  name: contact_point.name,
+                  phone: contact_point.telephone,
+                }
+              };
+            }
+
             delete item.sender?.address?.meta;
             delete item.recipient?.address?.meta;
+            delete item.billing_address?.address?.meta;
+            item.recipient ??= item.billing_address;
+            item.billing_address ??= item.recipient;
             item.user_id ??= subject?.id;
           }
         );
