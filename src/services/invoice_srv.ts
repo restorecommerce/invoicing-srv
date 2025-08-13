@@ -150,7 +150,11 @@ export type AggregatedPosition = Position & {
 export type RenderResult = {
   payload?: {
     id?: string;
-    body?: string;
+    content?: {
+      header?: string;
+      body?: string;
+      footer?: string;
+    };
   }
   status?: Status;
 };
@@ -245,7 +249,7 @@ export class InvoiceService
   };
 
   protected readonly tech_user: Subject;
-  protected readonly awaits_render_result = new ResourceAwaitQueue<string[]>;
+  protected readonly awaits_render_result = new ResourceAwaitQueue<{id?: string, body?: string}[]>;
   protected readonly pdf_rendering_service: Client<PdfRenderingServiceDefinition>;
   protected readonly notification_service: Client<NotificationReqServiceDefinition>;
   protected readonly ostorage_service: Client<ObjectServiceDefinition>;
@@ -1164,7 +1168,7 @@ export class InvoiceService
       templates.map(
         async template => await Promise.all(template.bodies?.map(
           async (body, i) => ({
-            id: makeID(),
+            id: template.use_case,
             body: body?.url ? await this.fetchFile(
               body.url, subject
             ) : undefined,
@@ -1259,17 +1263,45 @@ export class InvoiceService
             item,
             aggregation,
             render_id,
-            [TemplateUseCase.INVOICE_PDF],
+            [
+              TemplateUseCase.INVOICE_PDF,
+              'INVOICE_PDF_BODY',
+              'INVOICE_PDF_HEADER',
+              'INVOICE_PDF_FOOTER'
+            ],
             default_templates,
             request.subject,
           ).then(
             async (): Promise<RenderResult> => ({
               payload: {
                 id: item.id,
-                body: await this.awaits_render_result.await(
+                content: await this.awaits_render_result.await(
                   render_id, this.kafka_timeout
                 ).then(
-                  b => b.join('')
+                  c => ({
+                    header: c.filter(
+                      c => [
+                        'INVOICE_PDF_HEADER'
+                      ].includes(c.id)
+                    ).map(
+                      c => c.body
+                    ).join(''),
+                    body: c.filter(
+                      c => [
+                        TemplateUseCase.INVOICE_PDF,
+                        'INVOICE_PDF_BODY'
+                      ].includes(c.id)
+                    ).map(
+                      c => c.body
+                    ).join(''),
+                    footer: c.filter(
+                      c => [
+                        'INVOICE_PDF_FOOTER'
+                      ].includes(c.id)
+                    ).map(
+                      c => c.body
+                    ).join('')
+                  })
                 ),
               },
               status: {
@@ -1288,7 +1320,7 @@ export class InvoiceService
                 );
                 return this.renderPdf(
                   item,
-                  response.payload.body,
+                  response.payload.content,
                   setting,
                   this.tech_user ?? request.subject,
                   context,
@@ -1438,13 +1470,13 @@ export class InvoiceService
                 ),
               );
               const title = bodies.shift();
-              const body = bodies.join('');
+              const body = bodies.map(b => b.body).join('');
 
               return await this.sendNotification(
                 item,
                 body,
                 setting,
-                title,
+                title.body,
                 request.items[i].document_ids,
                 this.tech_user ?? request.subject,
                 context,
@@ -1695,16 +1727,21 @@ export class InvoiceService
 
   protected async renderPdf(
     invoice: Invoice,
-    body: string,
+    content: {
+      header?: string,
+      body?: string,
+      footer?: string,
+    },
     setting: ResolvedSetting,
     subject?: Subject,
     context?: any,
   ): Promise<InvoiceResponse> {
+    const {header, body, footer } = content;
     try {
       if (!setting.shop_html_bucket_disabled) {
         await this.storageHtmlRenderResponse(
           invoice,
-          body,
+          [header, body, footer].filter(Boolean).join(),
           setting,
           subject,
           context,
@@ -1728,7 +1765,19 @@ export class InvoiceService
                 html: body,
               },
               options: {
-                puppeteer_options: setting.shop_puppeteer_options,
+                puppeteer_options: {
+                  ...setting.shop_puppeteer_options,
+                  pdf_options: {
+                    margin_top: .5,
+                    margin_bottom: .5,
+                    margin_left: .5,
+                    margin_right: .5,
+                    display_header_footer: Boolean(header || footer),
+                    header_template: header,
+                    footer_template: footer,
+                    ...setting.shop_puppeteer_options?.pdf_options,
+                  },
+                },
                 wait_after_load_time: setting.shop_puppeteer_wait ?? 5000,
               },
             },
@@ -1897,7 +1946,10 @@ export class InvoiceService
       else {
         const bodies = response.items.flatMap(
           item => item.payload.bodies.map(
-            item => item.body.toString(item.charset as BufferEncoding)
+            item => ({
+              id: item.id,
+              body: item.body.toString(item.charset as BufferEncoding)
+            })
           )
         );
         this.awaits_render_result.resolve(response.id, bodies);

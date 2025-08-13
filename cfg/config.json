@@ -439,7 +439,15 @@
     "Setting": {
       "shop_default_bucket": "invoices",
       "shop_html_bucket_disabled": true,
-      "shop_bucket_endpoint": "http://facade:5000/storage"
+      "shop_bucket_endpoint": "http://facade:5000/storage",
+      "shop_puppeteer_options": {
+        "pdf_options": {
+          "margin_top": 0.5,
+          "margin_bottom": 0.5,
+          "margin_left": 0.5,
+          "margin_right": 0.5
+        }
+      }
     },
     "Templates": [
       {
