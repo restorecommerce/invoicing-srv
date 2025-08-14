@@ -1941,7 +1941,7 @@ export class InvoiceService
         transport: 'email',
         provider: setting.shop_email_provider,
         email: {
-          to: [invoice.recipient.contact.email],
+          to: [invoice.billing_address.contact.email ?? invoice.recipient.contact.email],
           cc: [
             ...(setting.customer_email_cc ?? []),
             ...(setting.shop_email_cc ?? []),
