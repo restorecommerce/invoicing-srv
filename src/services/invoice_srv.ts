@@ -675,7 +675,7 @@ export class InvoiceService
           service: ShopServiceDefinition,
           map_by_ids: (invoice_list) => invoice_list.items?.map(
             i => i.shop_id
-          ).filter(i => i) ?? [],
+          ) ?? [],
           container: 'shops',
           entity: 'Shop',
         },
@@ -683,7 +683,7 @@ export class InvoiceService
           service: CustomerServiceDefinition,
           map_by_ids: (invoice_list) => invoice_list.items?.map(
             i => i.customer_id
-          ).filter(i => i) ?? [],
+          ) ?? [],
           container: 'customers',
           entity: 'Customer',
         },
@@ -695,7 +695,7 @@ export class InvoiceService
             section => section.positions
           )?.flatMap(
             position => position.product_item?.product_id
-          ).filter(i => i) ?? [],
+          ) ?? [],
           container: 'products',
           entity: 'Product',
         },
@@ -707,7 +707,7 @@ export class InvoiceService
             section => section.positions
           )?.flatMap(
             position => position.fulfillment_item?.product_id
-          ).filter(i => i) ?? [],
+          ) ?? [],
           container: 'fulfillment_products',
           entity: 'FulfillmentProduct',
         },
@@ -732,7 +732,7 @@ export class InvoiceService
               subject?.id,
               aggregation.items?.map(item => item.user_id),
               aggregation.customers?.all.map(customer => customer.private?.user_id)
-            ).filter(i => i),
+            ),
             container: 'users',
             entity: 'User',
           },
@@ -775,7 +775,7 @@ export class InvoiceService
                   variant => variant.tax_ids
                 ),
               )
-            ).filter(i => i),
+            ),
             container: 'taxes',
             entity: 'Tax',
           },
@@ -783,15 +783,20 @@ export class InvoiceService
             service: TemplateServiceDefinition,
             map_by_ids: (aggregation) => aggregation.shops?.all.flatMap(
               shop => shop?.template_ids
-            ).filter(i => i),
+            ),
             container: 'templates',
             entity: 'Template',
           },
           {
             service: SettingServiceDefinition,
-            map_by_ids: (aggregation) => aggregation.shops?.all.map(
-              shop => shop?.setting_id
-            ).filter(i => i),
+            map_by_ids: (aggregation) => [].concat(
+              aggregation.shops?.all.map(
+                shop => shop?.setting_id
+              ),
+              aggregation.customers?.all.map(
+                customers => customers?.setting_id
+              ),
+            ),
             container: 'settings',
             entity: 'Setting',
           },
@@ -857,7 +862,7 @@ export class InvoiceService
               aggregation.organizations.all.flatMap(
                 organization => organization.contact_point_ids
               )
-            ).filter(i => i),
+            ),
             container: 'contact_points',
             entity: 'ContactPoint',
           },

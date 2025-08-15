@@ -192,10 +192,10 @@ export const DefaultSetting = {
   shop_invoice_number_start: 0,
   shop_invoice_number_increment: 1,
   shop_invoice_number_pattern: 'invoice-%010i',
-  shop_locales: ['en'] as string[],
+  shop_locales: [] as string[],
   shop_bucket_key_delimiter: '/',
   shop_bucket_endpoint: 'localhost:5000/storage',
-  customer_locales: ['en'] as string[],
+  customer_locales: [] as string[],
   customer_email_cc: undefined as string[],
   customer_email_bcc: undefined as string[],
 };
