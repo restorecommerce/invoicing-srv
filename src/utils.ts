@@ -110,8 +110,8 @@ export const DefaultUrns = {
   customer_locales:                   'urn:restorecommerce:customer:setting:locales',                   // [string]: list of locales in descending preference (comma separated) - default: cfg -> 'en'
   customer_email_cc:                  'urn:restorecommerce:customer:setting:invoide:email:cc',          // [string]: add recipients in CC (comma separated) - default: cfg -> null
   customer_email_bcc:                 'urn:restorecommerce:customer:setting:invoide:email:bcc',         // [string]: add recipients in BC (comma separated) - default: cfg -> null
-  template_puppeteer_options:         'urn:restorecommerce:template:puppeteer:options',                 // [json]: override pdf puppeteer options - default: cfg -> null
-  template_puppeteer_wait:            'urn:restorecommerce:template:puppeteer:wait',                    // [json]: override pdf puppeteer wait - default: cfg -> null
+  template_puppeteer_options:         'urn:restorecommerce:template:attribute:puppeteer:options',       // [json]: override pdf puppeteer options - default: cfg -> null
+  template_puppeteer_wait:            'urn:restorecommerce:template:attribute:puppeteer:wait',          // [json]: override pdf puppeteer wait - default: cfg -> null
 };
 
 export type KnownUrns = typeof DefaultUrns;
