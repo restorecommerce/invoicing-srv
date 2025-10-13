@@ -65,7 +65,7 @@ export function DefaultResourceFactory<T extends ResourceList>(
   return async (
     self: any,
     request: T,
-    context: CallContext,
+    context?: CallContext,
   ) => (resourceNames?.length ? resourceNames : [self.name])?.map(
     resourceName => ({
       resource: resourceName,
@@ -126,7 +126,7 @@ export class AccessControlledServiceBase<O extends ResourceListResponse, I exten
     const graph = cfg.get('graph');
     super(
       resourceName,
-      topic,
+      topic as any,
       logger,
       new ResourcesAPIBase(
         db,

@@ -447,7 +447,8 @@
           "margin_left": 0.5,
           "margin_right": 0.5
         }
-      }
+      },
+      "shop_puppeteer_wait": 1000
     },
     "Templates": [
       {

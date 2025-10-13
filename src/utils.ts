@@ -110,6 +110,8 @@ export const DefaultUrns = {
   customer_locales:                   'urn:restorecommerce:customer:setting:locales',                   // [string]: list of locales in descending preference (comma separated) - default: cfg -> 'en'
   customer_email_cc:                  'urn:restorecommerce:customer:setting:invoide:email:cc',          // [string]: add recipients in CC (comma separated) - default: cfg -> null
   customer_email_bcc:                 'urn:restorecommerce:customer:setting:invoide:email:bcc',         // [string]: add recipients in BC (comma separated) - default: cfg -> null
+  template_puppeteer_options:         'urn:restorecommerce:template:puppeteer:options',                 // [json]: override pdf puppeteer options - default: cfg -> null
+  template_puppeteer_wait:            'urn:restorecommerce:template:puppeteer:wait',                    // [json]: override pdf puppeteer wait - default: cfg -> null
 };
 
 export type KnownUrns = typeof DefaultUrns;
@@ -161,6 +163,8 @@ const SettingParser: { [key: string]: (value: string) => any } = {
   customer_locales: parseList,
   customer_email_cc: parseList,
   customer_email_bcc: parseList,
+  template_puppeteer_options: JSON.parse,
+  template_puppeteer_wait: Number.parseInt,
 };
 export const parseSetting = (key: string, value: string) => {
   const parser = SettingParser[key];
@@ -198,6 +202,8 @@ export const DefaultSetting = {
   customer_locales: [] as string[],
   customer_email_cc: undefined as string[],
   customer_email_bcc: undefined as string[],
+  template_puppeteer_options: undefined as any,
+  template_puppeteer_wait: undefined as number,
 };
 export type ResolvedSetting = typeof DefaultSetting;
 

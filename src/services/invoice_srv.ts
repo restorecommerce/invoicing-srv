@@ -1811,6 +1811,7 @@ export class InvoiceService
               options: {
                 puppeteer_options: {
                   ...setting.shop_puppeteer_options,
+                  ...setting.template_puppeteer_options,
                   pdf_options: {
                     margin_top: .5,
                     margin_bottom: .5,
@@ -1820,9 +1821,10 @@ export class InvoiceService
                     header_template: header,
                     footer_template: footer,
                     ...setting.shop_puppeteer_options?.pdf_options,
+                    ...setting.template_puppeteer_options?.pdf_options,
                   },
                 },
-                wait_after_load_time: setting.shop_puppeteer_wait ?? 5000,
+                wait_after_load_time: setting.template_puppeteer_wait ?? setting.shop_puppeteer_wait,
               },
             },
           ],
