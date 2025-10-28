@@ -12,7 +12,10 @@ import {
 import {
   protoMetadata as ResourceBaseMeta,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/resource_base.js';
-import { ServiceBindConfig, WorkerBase } from './experimental/WorkerBase.js';
+import {
+  ServiceBindConfig,
+  WorkerBase
+} from '@restorecommerce/resource-base-interface/lib/experimental/WorkerBase.js';
 import { InvoiceService } from './services/invoice_srv.js';
 
 registerProtoMeta(

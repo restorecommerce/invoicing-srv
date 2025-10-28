@@ -82,7 +82,7 @@ import {
   ResourceMap,
   ResolverMap,
   Resolved,
-} from './experimental/index.js';
+} from '@restorecommerce/resource-base-interface/lib/experimental';
 
 export const DefaultUrns = {
   shop_default_bucket:                'urn:restorecommerce:shop:setting:invoice:bucket:default',        // [string]: overrides default bucket for file storage - default: cfg -> 'invoice'
@@ -214,7 +214,7 @@ export type InvoiceNumber = {
   invoice_number?: string;
 };
 
-export const makeID = () => randomUUID().replaceAll('-', '');
+export const makeID = () => randomUUID().replace(/-/g, '');
 
 const mergeProductVariantRecursive = (
   nature: ProductNature,

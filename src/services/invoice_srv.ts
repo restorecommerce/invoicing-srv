@@ -44,8 +44,6 @@ import {
   DefaultResourceFactory,
   Operation,
   access_controlled_function,
-  injects_meta_data,
-  resolves_subject,
 } from '@restorecommerce/acs-client';
 import { Subject } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/auth.js';
 import {
@@ -126,7 +124,7 @@ import {
   ResourceAwaitQueue,
   ResourceAggregator,
   ResourceMap,
-} from '../experimental/index.js';
+} from '@restorecommerce/resource-base-interface/lib/experimental';
 import {
   type KnownUrns,
   type AggregatedInvoiceList,
@@ -357,12 +355,12 @@ export class InvoiceService
     return {
       id,
       code: Number.isInteger(status?.code) ? status.code : 500,
-      message: status?.message?.replaceAll(
-        '{error}', error ?? 'undefined'
-      ).replaceAll(
-        '{entity}', entity ?? 'undefined'
-      ).replaceAll(
-        '{id}', entity_id ?? 'undefined'
+      message: status?.message?.replace(
+        /\{error\}/g, error ?? 'undefined'
+      ).replace(
+        /\{entity\}/g, entity ?? 'undefined'
+      ).replace(
+        /\{id\}/g, entity_id ?? 'undefined'
       ) ?? 'Unknown status',
     };
   }
@@ -390,10 +388,10 @@ export class InvoiceService
   ): OperationStatus {
     return {
       code: Number.isInteger(status?.code) ? status.code : 500,
-      message: status?.message?.replaceAll(
-        '{entity}', entity ?? 'undefined'
-      ).replaceAll(
-        '{id}', id ?? 'undefined'
+      message: status?.message?.replace(
+        /\{entity\}/g, entity ?? 'undefined'
+      ).replace(
+        /\{id\}/g, id ?? 'undefined'
       ) ?? 'Unknown status',
     };
   }
@@ -1258,8 +1256,6 @@ export class InvoiceService
     );
   }
 
-  @resolves_subject()
-  @injects_meta_data()
   @access_controlled_function({
     action: AuthZAction.EXECUTE,
     operation: Operation.isAllowed,
@@ -1412,7 +1408,7 @@ export class InvoiceService
             );
           }
           
-          items = [...response_map.values()];
+          items = Array.from(response_map.values());
           const operation_status = items.every(
             item => item.status?.code === 200
           ) ? this.operation_status_codes.SUCCESS
@@ -1439,8 +1435,6 @@ export class InvoiceService
     }
   }
 
-  @resolves_subject()
-  @injects_meta_data()
   @access_controlled_function({
     action: AuthZAction.EXECUTE,
     operation: Operation.isAllowed,
@@ -1569,7 +1563,6 @@ export class InvoiceService
     }
   }
 
-  @resolves_subject()
   @access_controlled_function({
     action: AuthZAction.EXECUTE,
     operation: Operation.isAllowed,

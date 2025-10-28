@@ -1,6 +1,11 @@
-import { type ServiceImplementation } from 'nice-grpc';
-import { type CompatServiceDefinition } from 'nice-grpc/lib/service-definitions';
-import { type RedisClientType, createClient } from 'redis';
+import {
+  type ServiceImplementation,
+  type CompatServiceDefinition,
+} from 'nice-grpc';
+import {
+  RedisClientType,
+  createClient
+} from 'redis';
 import {
   Server,
   OffsetStore,
@@ -26,18 +31,23 @@ import {
   protoMetadata as CommandInterfaceMeta,
   CommandInterfaceServiceDefinition,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/commandinterface.js';
+import {
+  protoMetadata as JobMeta
+} from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/job.js';
 import { HealthDefinition } from '@restorecommerce/rc-grpc-clients/dist/generated-server/grpc/health/v1/health.js';
 import { ServerReflectionService } from 'nice-grpc-server-reflection';
 import {
   createServiceConfig,
   type ServiceConfig
 } from '@restorecommerce/service-config';
-import { ServiceBase } from '@restorecommerce/resource-base-interface';
 import { initAuthZ } from '@restorecommerce/acs-client';
+import { runWorker } from '@restorecommerce/scs-jobs';
+import { ServiceBase } from '@restorecommerce/resource-base-interface';
 
 registerProtoMeta(
   ResourceBaseMeta,
   CommandInterfaceMeta,
+  JobMeta,
 );
 
 export type ReflectionService = ServiceImplementation<any>;
@@ -123,13 +133,16 @@ export abstract class WorkerBase {
 
   protected readonly services = new Map<string, ServiceImplementation<any> | ServiceBase<any, any> | CommandInterface>();
   protected readonly topics = new Map<string, Topic>();
-  protected readonly redisClients = new Map<string, RedisClientType>();
+  protected readonly redisClients = new Map<string, RedisClientType<any, any>>();
   protected readonly eventHandlers = new Map<string, EventHandler>();
   protected readonly jobHandler: ServiceImplementation<any> = {
     handleQueuedJob: (msg: any, context: any, config?: any, eventName?: string) => {
       return this.eventHandlers.get(msg?.type)(msg?.data?.payload, context, config, msg?.type).then(
         () => this.logger?.info(`Job ${msg?.type} done.`),
-        (err: any) => this.logger?.error(`Job ${msg?.type} failed: ${err}`)
+        ({ code, message, details, stack }: any) => this.logger?.error(
+          `Job ${msg?.type} failed:`,
+          { code, message, details, stack }
+        )
       );
     }
   };
@@ -147,7 +160,7 @@ export abstract class WorkerBase {
     const serviceNames = this.cfg.get('serviceNames');
     configs.forEach(
       config => {
-        this.logger?.silly('bind Service:', serviceNames?.[config.name] ?? config.name);
+        this.logger?.debug('bind Service:', serviceNames?.[config.name] ?? config.name);
         this.services.set(serviceNames?.[config.name] ?? config.name, config.implementation);
       }
     );
@@ -179,7 +192,7 @@ export abstract class WorkerBase {
 
   protected async bindCommandInterface(configs: ServiceBindConfig<any>[]) {
     this.logger?.verbose('bind CommandInterface');
-    this.commandInterface = [...this.services.values()].find(
+    this.commandInterface = Array.from(this.services.values()).find(
       service => service instanceof CommandInterface
     ) as CommandInterface;
 
@@ -307,11 +320,14 @@ export abstract class WorkerBase {
 
   protected bindHandler(serviceName: string, functionName: string) {
     serviceName = this.cfg.get(`serviceNames:${serviceName}`) ?? serviceName;
-    this.logger?.silly(`Bind event to handler: ${serviceName}.${functionName}`);
+    this.logger?.debug(`Bind event to handler: ${serviceName}.${functionName}`);
     return (msg: any, context: any, config: any, eventName: string): Promise<any> => {
       return (this.services.get(serviceName) as any)?.[functionName]?.(msg, context).then(
-        () => this.logger?.silly(`Event ${eventName} handled.`),
-        (err: any) => this.logger?.error(`Error while handling event ${eventName}: ${err}`),
+        () => this.logger?.debug(`Event ${eventName} handled.`),
+        ({ code, message, details, stack }: any) => this.logger?.error(
+          `Error while handling event ${eventName}:`,
+          { code, message, details, stack }
+        ),
       ) ?? this.logger?.warn(
         `Event ${eventName} was not bound to handler: ${serviceName}.${functionName} does not exist!.`
       );
@@ -324,12 +340,12 @@ export abstract class WorkerBase {
     const kafkaCfg = this.cfg.get('events:kafka');
     this.events = new Events(kafkaCfg, this.logger);
     await this.events.start();
-    this.offsetStore = new OffsetStore(this.events, this.cfg, this.logger); // , this.redisClients.get('db-offsetStore'));
+    this.offsetStore = new OffsetStore(this.events, this.cfg, this.logger);
 
     await Promise.all(Object.entries(kafkaCfg.topics).map(async ([key, value]: any[]) => {
       const topicName = value.topic;
       const topic = await this.events.topic(topicName);
-      const offsetValue: number = await this.offsetStore.getOffset(topicName);
+      const offsetValue = await this.offsetStore.getOffset(topicName);
       this.logger?.verbose('subscribing to topic with offset value', topicName, offsetValue);
       Object.entries(value.events as { [key: string]: string } ?? {}).forEach(
         ([eventName, handler]) => {
@@ -348,7 +364,34 @@ export abstract class WorkerBase {
       this.topics.set(key, topic);
     }));
   }
-
+  protected async bindScheduledJobs() {
+    const job_config = this.cfg.get('scs-jobs');
+    if (job_config) {
+      registerProtoMeta(
+        JobMeta
+      );
+      await Promise.all(Object.values<{ import?: string }>(job_config)?.map(
+        async job => {
+          try {
+            if (job.import?.endsWith('.js') || job.import?.endsWith('.cjs')) {
+              const fileImport = await import(job.import);
+              if (fileImport?.default?.default) {
+                await fileImport.default.default(this.cfg, this.logger, this.events, runWorker);
+              } else {
+                await fileImport.default(this.cfg, this.logger, this.events, runWorker);
+              }
+            }
+          }
+          catch ({ code, message, details, stack }: any) {
+            this.logger?.error(
+              `Error scheduling external job ${job.import}`,
+              { code, message, details, stack }
+            );
+          }
+        }
+      ));
+    }
+  }
   public async start(
     cfg?: ServiceConfig,
     logger?: Logger,
@@ -378,7 +421,8 @@ export abstract class WorkerBase {
     await this.bindCommandInterface(serviceConfigs);
     await this.bindHealthCheck();
     await this.bindRefelctions(serviceConfigs);
-
+    await this.bindScheduledJobs();
+    
     // start server
     await initAuthZ(this.cfg);
     await this.server.start();
