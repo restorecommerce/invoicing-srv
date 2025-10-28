@@ -55,7 +55,7 @@
     "test": "npm-run-all lint jest",
     "jest": "NODE_OPTIONS=--experimental-vm-modules cross-env NODE_ENV=test jest --runInBand --silent=false",
     "lint": "eslint src --fix",
-    "build:es": "esbuild ./src/start.ts --bundle --platform=node --outfile=lib/start.cjs --minify --tree-shaking=true --sourcemap=inline",
+    "build:es": "node esbuild.mjs",
     "build:clean": "rimraf lib",
     "build": "npm-run-all build:clean build:es",
     "prepare": "node -e \"try { require('husky').install() } catch (e) {}\""
