@@ -133,7 +133,7 @@ export abstract class WorkerBase {
 
   protected readonly services = new Map<string, ServiceImplementation<any> | ServiceBase<any, any> | CommandInterface>();
   protected readonly topics = new Map<string, Topic>();
-  protected readonly redisClients = new Map<string, RedisClientType<any, any>>();
+  protected readonly redisClients = new Map<string, RedisClientType>();
   protected readonly eventHandlers = new Map<string, EventHandler>();
   protected readonly jobHandler: ServiceImplementation<any> = {
     handleQueuedJob: (msg: any, context: any, config?: any, eventName?: string) => {
