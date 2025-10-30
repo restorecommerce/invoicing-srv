@@ -32,6 +32,9 @@ import {
   connectTopics,
   mockServices,
 } from './utils.js';
+import {
+  urns
+} from '@restorecommerce/acs-client';
 
 let mocking: GrpcMockServer[];
 let worker: Worker;
@@ -70,7 +73,6 @@ beforeAll(
       topics?.on('invoiceCreated', onInvoiceCreated),
       topics?.on('invoiceRendered', onInvoiceRendered),
     ]);
-    await topics?.consumer?.run();
   },
   30000
 );

@@ -18,7 +18,11 @@ import {
 import {
   resolves_subject,
   injects_meta_data,
-} from '../experimental/decorators';
+} from '../experimental/decorators.js';
+import { CallContext } from '@restorecommerce/grpc-client';
+import { ReadRequest } from '@restorecommerce/rc-grpc-clients';
+import { Filter_Operation, Filter_ValueType } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/filter.js';
+import { AccessControlledServiceBaseOperationStatusCodes } from '@restorecommerce/resource-base-interface/lib/experimental/AccessControlledServiceBase.js';
 
 export interface InvoiceNumber {
   id?: string;
@@ -50,6 +54,10 @@ export interface InvoiceNumberListResponse {
 export class InvoiceNumberService
   extends ServiceBase<InvoiceNumberListResponse, InvoiceNumberList>
 {
+  override get operationStatusCodes(): AccessControlledServiceBaseOperationStatusCodes {
+    return super.operationStatusCodes;
+  }
+
   constructor(
     protected readonly topic: Topic,
     protected readonly db: DatabaseProvider,
@@ -70,6 +78,44 @@ export class InvoiceNumberService
       ),
       false,
     );
+    super.operationStatusCodes = {
+      ...AccessControlledServiceBaseOperationStatusCodes,
+      ...cfg?.get('operationStatusCodes'),
+    };
+  }
+
+  public async get(
+    ids: string[],
+    subject?: Subject,
+    context?: CallContext,
+    bypassACS = false,
+  ): Promise<InvoiceNumberListResponse> {
+    ids = Array.from(new Set(ids)).filter(id => id);
+    if (ids.length > 1000) {
+      throw this.operationStatusCodes.LIMIT_EXHAUSTED;
+    }
+
+    if (ids.length === 0) {
+      const response = {
+        total_count: 0,
+        operation_status: this.operationStatusCodes.SUCCESS,
+      };
+      return response as InvoiceNumberListResponse;
+    }
+
+    const request = ReadRequest.fromPartial({
+      filters: [{
+        filters: [{
+          field: '_key',
+          operation: Filter_Operation.in,
+          value: JSON.stringify(ids),
+          type: Filter_ValueType.ARRAY
+        }]
+      }],
+      limit: ids.length,
+      subject
+    });
+    return await this.read(request, context);
   }
 
   @resolves_subject()

@@ -124,6 +124,7 @@ import {
   ResourceAwaitQueue,
   ResourceAggregator,
   ResourceMap,
+  AccessControlledServiceBaseOperationStatusCodes,
 } from '@restorecommerce/resource-base-interface/lib/experimental';
 import {
   type KnownUrns,
@@ -137,6 +138,7 @@ import {
   packRenderData,
   makeID,
 } from '../utils.js';
+import { OperationStatusCodes, ServiceBaseStatusCodes, StatusCodes } from '@restorecommerce/resource-base-interface';
 
 
 export type ProductNature = PhysicalProduct | VirtualProduct | ServiceProduct;
@@ -163,6 +165,56 @@ export type AwaitStringMutex = {
   reject: (error: any) => any;
 };
 
+export const InvoiceStatusCodes = {
+  ...ServiceBaseStatusCodes,
+  NOT_FOUND: {
+    code: 404,
+    message: '{entity} {id} not found!',
+  },
+  MISSING_REQUIRED_FIELD: {
+    code: 500,
+    message: '{entity} {id} has no {error}!',
+  },
+  CONTENT_NOT_SUPPORTED: {
+    code: 400,
+    message: '{entity} {id}: Content type {error} is not supported!',
+  },
+  PROTOCOL_NOT_SUPPORTED: {
+    code: 400,
+    message: '{entity} {id}: Protocol of {error} is not supported!',
+  },
+  FETCH_FAILED: {
+    code: 500,
+    message: '{entity} {id}: {error}!',
+  },
+  PDF_RENDER_FAILED: {
+    code: 500,
+    message: '{entity} {id}: PDF-Rendering failed!',
+  },
+  NO_TEMPLATE_BODY: {
+    code: 500,
+    message: 'No body defined in template {id}!',
+  },
+};
+export type InvoiceStatusCodes = StatusCodes<typeof InvoiceStatusCodes>;
+
+export const InvoiceOperationStatusCodes = {
+  ...AccessControlledServiceBaseOperationStatusCodes,
+  NO_TEMPLATES: {
+    code: 500,
+    message: 'No render templates defined!',
+  },
+  TIMEOUT: {
+    code: 500,
+    message: 'Request timeout, API not responding!',
+  },
+  NO_ITEM: {
+    code: 400,
+    message: 'No {entity} in query!',
+  },
+};
+export type InvoiceOperationStatusCodes = OperationStatusCodes<typeof InvoiceOperationStatusCodes>
+
 export class InvoiceService
   extends AccessControlledServiceBase<InvoiceListResponse, InvoiceList>
   implements InvoiceServiceImplementation
@@ -184,67 +236,17 @@ export class InvoiceService
     };
   }
 
-  protected readonly status_codes = {
-    OK: {
-      code: 200,
-      message: 'OK',
-    },
-    NOT_FOUND: {
-      code: 404,
-      message: '{entity} {id} not found!',
-    },
-    MISSING_REQUIRED_FIELD: {
-      code: 500,
-      message: '{entity} {id} has no {error}!',
-    },
-    CONTENT_NOT_SUPPORTED: {
-      code: 400,
-      message: '{entity} {id}: Content type {error} is not supported!',
-    },
-    PROTOCOL_NOT_SUPPORTED: {
-      code: 400,
-      message: '{entity} {id}: Protocol of {error} is not supported!',
-    },
-    FETCH_FAILED: {
-      code: 500,
-      message: '{entity} {id}: {error}!',
-    },
-    PDF_RENDER_FAILED: {
-      code: 500,
-      message: '{entity} {id}: PDF-Rendering failed!',
-    },
-    NO_TEMPLATE_BODY: {
-      code: 500,
-      message: 'No body defined in template {id}!',
-    },
-  };
+  override get operationStatusCodes(): InvoiceOperationStatusCodes {
+    return super.operationStatusCodes;
+  }
 
-  protected readonly operation_status_codes = {
-    SUCCESS: {
-      code: 200,
-      message: 'SUCCESS',
-    },
-    PARTIAL: {
-      code: 400,
-      message: 'Patrial executed with errors!',
-    },
-    LIMIT_EXHAUSTED: {
-      code: 500,
-      message: 'Query limit 1000 exhausted!',
-    },
-    NO_TEMPLATES: {
-      code: 500,
-      message: 'No render templates defined!',
-    },
-    TIMEOUT: {
-      code: 500,
-      message: 'Request timeout, API not responding!',
-    },
-    NO_ITEM: {
-      code: 400,
-      message: 'No {entity} in query!',
-    },
-  };
+  override get statusCodes(): InvoiceStatusCodes {
+    return super.statusCodes;
+  }
+
+  override set operationStatusCodes(value: InvoiceOperationStatusCodes) {
+    super.operationStatusCodes = value;
+  }
 
   protected readonly tech_user: Subject;
   protected readonly awaits_render_result = new ResourceAwaitQueue<{id?: string, body?: string}[]>;
@@ -340,6 +342,14 @@ export class InvoiceService
       ...this.contact_point_type_ids,
       ...cfg.get('contactPointTypeIds'),
     }
+    super.statusCodes = {
+      ...InvoiceStatusCodes,
+      ...cfg?.get('statusCodes'),
+    };
+    super.operationStatusCodes = {
+      ...InvoiceOperationStatusCodes,
+      ...cfg?.get('operationStatusCodes'),
+    };
 
     this.tech_user = cfg.get('authorization:techUser');
     this.kafka_timeout = cfg.get('events:kafka:timeout') ?? 5000;
@@ -657,7 +667,7 @@ export class InvoiceService
 
     return {
       invoice_number,
-      operation_status: this.operation_status_codes.SUCCESS,
+      operation_status: this.operationStatusCodes.SUCCESS,
     };
   }
 
@@ -1095,7 +1105,7 @@ export class InvoiceService
           throw chunk.response?.status ?? this.createStatusCode(
             undefined,
             'File',
-            this.status_codes.NOT_FOUND,
+            this.statusCodes.NOT_FOUND,
             url,
           );
         }
@@ -1107,7 +1117,7 @@ export class InvoiceService
       throw this.createStatusCode(
         undefined,
         'File',
-        this.status_codes.PROTOCOL_NOT_SUPPORTED,
+        this.statusCodes.PROTOCOL_NOT_SUPPORTED,
         url,
       );
     }
@@ -1147,7 +1157,7 @@ export class InvoiceService
           throw this.createStatusCode(
             template.id,
             'Template',
-            this.status_codes.CONTENT_NOT_SUPPORTED,
+            this.statusCodes.CONTENT_NOT_SUPPORTED,
             template.id,
             L.l10n.content_type,
           );
@@ -1201,7 +1211,7 @@ export class InvoiceService
       }
       else {
         throw this.createOperationStatusCode(
-          this.operation_status_codes.NO_TEMPLATES
+          this.operationStatusCodes.NO_TEMPLATES
         );
       }
     }
@@ -1221,7 +1231,7 @@ export class InvoiceService
         ) ?? this.throwStatusCode<RenderRequest_Template[]>(
           item.id,
           "Template",
-          this.status_codes.NO_TEMPLATE_BODY,
+          this.statusCodes.NO_TEMPLATE_BODY,
           template.id,
         ))
       )
@@ -1272,7 +1282,7 @@ export class InvoiceService
       if (!request.items?.length) {
         return {
           items: [],
-          operation_status: this.operation_status_codes.NO_ITEM,
+          operation_status: this.operationStatusCodes.NO_ITEM,
         }
       }
 
@@ -1344,10 +1354,7 @@ export class InvoiceService
                   })
                 ),
               },
-              status: {
-                code: 200,
-                message: 'OK',
-              }
+              status: this.statusCodes.SUCCESS,
             }),
           ).then(
             response => {
@@ -1371,7 +1378,7 @@ export class InvoiceService
                 invoice.status = response.status ?? this.createStatusCode(
                   item.id,
                   'Invoice',
-                  this.status_codes.PDF_RENDER_FAILED,
+                  this.statusCodes.PDF_RENDER_FAILED,
                   item.id
                 );
                 return invoice;
@@ -1411,8 +1418,8 @@ export class InvoiceService
           items = Array.from(response_map.values());
           const operation_status = items.every(
             item => item.status?.code === 200
-          ) ? this.operation_status_codes.SUCCESS
-            : this.operation_status_codes.PARTIAL;
+          ) ? this.operationStatusCodes.SUCCESS
+            : this.operationStatusCodes.MULTI_STATUS;
 
           return {
             items,
@@ -1451,7 +1458,7 @@ export class InvoiceService
       if (!request.items?.length) {
         return {
           status: [],
-          operation_status: this.operation_status_codes.NO_ITEM,
+          operation_status: this.operationStatusCodes.NO_ITEM,
         }
       }
       const ids = request.items.map(item => item.id);
@@ -1524,7 +1531,7 @@ export class InvoiceService
                   status: this.createStatusCode(
                     item.id,
                     'Invoice',
-                    this.status_codes.OK,
+                    this.statusCodes.SUCCESS,
                     item.id,
                   )
                 })
@@ -1885,7 +1892,7 @@ export class InvoiceService
 
       return {
         payload: invoice,
-        status: this.status_codes.OK,
+        status: this.statusCodes.SUCCESS,
       };
     }
     catch (err) {
@@ -1910,7 +1917,7 @@ export class InvoiceService
           throw this.createStatusCode(
             invoice.id,
             'Document',
-            this.status_codes.NOT_FOUND,
+            this.statusCodes.NOT_FOUND,
             id,
           );
         }
@@ -1918,7 +1925,7 @@ export class InvoiceService
           throw this.createStatusCode(
             invoice.id,
             'Document',
-            this.status_codes.MISSING_REQUIRED_FIELD,
+            this.statusCodes.MISSING_REQUIRED_FIELD,
             id,
             'url'
           );
