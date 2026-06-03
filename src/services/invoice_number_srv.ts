@@ -18,7 +18,7 @@ import {
 import {
   resolves_subject,
   injects_meta_data,
-} from '../experimental/decorators.js';
+} from '@restorecommerce/acs-client/lib/acs/decorators.js'
 import { CallContext } from '@restorecommerce/grpc-client';
 import { ReadRequest } from '@restorecommerce/rc-grpc-clients';
 import { Filter_Operation, Filter_ValueType } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/filter.js';

@@ -14,9 +14,9 @@ import {
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/resource_base.js';
 import {
   ServiceBindConfig,
-} from '@restorecommerce/resource-base-interface/lib/experimental/WorkerBase.js';
+  WorkerBase,
+} from '@restorecommerce/resource-base-interface/lib/experimental/index.js';
 import { InvoiceService } from './services/invoice_srv.js';
-import { WorkerBase } from './experimental/WorkerBase.js';
 
 registerProtoMeta(
   RenderingMeta,
@@ -35,7 +35,7 @@ export class Worker extends WorkerBase {
           this.topics.get('rendering'),
           this.topics.get('notificationReq'),
           this.db,
-          this.redisClients.get('db-invoiceCounter'),
+          this.redisClients.get('db-invoiceCounter') as any,
           this.cfg,
           this.logger,
         ),
