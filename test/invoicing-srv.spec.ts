@@ -13,7 +13,10 @@ import {
   createChannel,
   GrpcClientConfig
 } from '@restorecommerce/grpc-client';
-import { Events, Topic } from '@restorecommerce/kafka-client';
+import {
+  Events,
+  Topic
+} from '@restorecommerce/kafka-client';
 import {
   Invoice as Invoice_,
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice.js';

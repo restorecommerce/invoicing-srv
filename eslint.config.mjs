@@ -1,22 +1,18 @@
 // @ts-check
 
 import eslint from '@eslint/js';
-import { RuleTester } from 'eslint';
+import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 
-const rules = tseslint.config(
+export default defineConfig(
   eslint.configs.recommended,
-  ...tseslint.configs.recommended,
-);
-
-rules.push(
+  tseslint.configs.recommended,
   {
-    "rules": {
+    rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",
-      "prefer-rest-params": "off",
+      "@typescript-eslint/no-this-alias": "warn",
+      "prefer-rest-params": "warn",
     }
   }
 );
-
-export default rules;
