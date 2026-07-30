@@ -138,8 +138,11 @@ import {
   packRenderData,
   makeID,
 } from '../utils.js';
-import { OperationStatusCodes, ServiceBaseStatusCodes, StatusCodes } from '@restorecommerce/resource-base-interface';
-
+import {
+  OperationStatusCodes,
+  ServiceBaseStatusCodes,
+  StatusCodes
+} from '@restorecommerce/resource-base-interface';
 
 export type ProductNature = PhysicalProduct | VirtualProduct | ServiceProduct;
 export type ProductVariant = PhysicalVariant | VirtualVariant | ServiceVariant;

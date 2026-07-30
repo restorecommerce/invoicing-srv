@@ -1,10 +1,5 @@
-import { 
-  describe,
-  expect,
-  test,
-  beforeAll,
-  afterAll,
-} from '@jest/globals';
+import { it, describe, beforeAll, afterAll } from 'vitest';
+import should from 'should';
 import {
   Semaphore
 } from 'async-mutex';
@@ -35,9 +30,6 @@ import {
   connectTopics,
   mockServices,
 } from './utils.js';
-import {
-  urns
-} from '@restorecommerce/acs-client';
 
 let mocking: GrpcMockServer[];
 let worker: Worker;
@@ -48,12 +40,12 @@ const invoiceCreatedSemaphore = new Semaphore(0);
 const invoiceRenderedSemaphore = new Semaphore(0);
 
 const onInvoiceCreated = (msg: Invoice_, context?:any): void => {
-  expect(msg).not.toBeUndefined();
+  should.exist(msg);
   invoiceCreatedSemaphore.release(1);
 };
 
 const onInvoiceRendered = (msg: Invoice_, context?:any): void => {
-  expect(msg?.documents?.length).toBeGreaterThan(0);
+  should(msg?.documents?.length).greaterThan(0);
   invoiceRenderedSemaphore.release(1);
 };
 
@@ -105,32 +97,31 @@ afterAll(
 );
 
 describe('The Invoicing Service:', function() {
-  test('should start up "beforeAll"', function(done) {
-    expect(worker).not.toBeUndefined();
-    expect(events).not.toBeUndefined();
-    expect(topics).not.toBeUndefined();
-    expect(client).not.toBeUndefined();
+  it('should start up "beforeAll"', function() {
+    should.exist(worker);
+    should.exist(events);
+    should.exist(topics);
+    should.exist(client);
     logger.debug('Wait few seconds for system warm up...');
-    setTimeout(done, 5000);
   });
 
   for (let [sample_name, sample] of Object.entries(samples.invoices.valid)) {
-    test(
+    it(
       `should create invoices using valid samples: ${sample_name}`,
       async function() {
         const response = await client.create(sample);
         logger.debug(response);
-        expect(
+        should(
           response.operationStatus?.code
-        ).toBe(200);
-        expect(
+        ).equal(200);
+        should(
           response.items!.every(item => item.status?.code === 200)
-        ).toBeTruthy();
+        ).True();
       },
       30000
     );
 
-    test(
+    it(
       'should have received an invoice create event',
       async function() {
         await invoiceCreatedSemaphore.acquire(1);
@@ -140,26 +131,26 @@ describe('The Invoicing Service:', function() {
   }
 
   for (let [sample_name, sample] of Object.entries(samples.invoices.valid)) {
-    test(
+    it(
       `should render invoices using valid samples: ${sample_name}`,
       async function() {
         const response = await client.render(sample);
-        expect(
+        should(
           response.operationStatus?.code
-        ).toBe(200);
-        expect(
+        ).equal(200);
+        should(
           response.items!.every(item => item.status?.code === 200)
-        ).toBeTruthy();
-        expect(
+        ).True();
+        should(
           response.items!.every(
             item => item.payload!.invoiceNumber!.startsWith('test-')
           )
-        ).toBeTruthy();
+        ).True();
       },
       30000
     );
 
-    test(
+    it(
       'should have received an invoice render event',
       async function() {
         await invoiceRenderedSemaphore.acquire(1);
@@ -169,7 +160,7 @@ describe('The Invoicing Service:', function() {
   }
 
   for (let [sample_name, sample] of Object.entries(samples.invoices.valid)) {
-    test(
+    it(
       `should send invoices using valid samples: ${sample_name}`,
       async function() {
         const response = await client.send({
@@ -183,19 +174,19 @@ describe('The Invoicing Service:', function() {
           subject: sample.subject,
         });
         logger.debug(response);
-        expect(
+        should(
           response.operationStatus?.code
-        ).toBe(200);
-        expect(
+        ).equal(200);
+        should(
           response.status!.every(item => item?.code === 200)
-        ).toBeTruthy();
+        ).True();
       },
       30000
     );
   }
 
   for (let [sample_name, sample] of Object.entries(samples.invoices.valid)) {
-    test(
+    it(
       `should withdraw invoices using valid samples: ${sample_name}`,
       async function() {
         const response = await client.withdraw({
@@ -209,19 +200,19 @@ describe('The Invoicing Service:', function() {
           subject: sample.subject,
         });
         logger.debug(response);
-        expect(
+        should(
           response.operationStatus?.code
-        ).toBe(200);
-        expect(
+        ).equal(200);
+        should(
           response.items!.every(item => item.status?.code === 200)
-        ).toBeTruthy();
+        ).True();
       },
       30000
     );
   }
 
   for (let [sample_name, sample] of Object.entries(samples.invoices.valid)) {
-    test(
+    it(
       `should delete invoices using valid samples: ${sample_name}`,
       async function() {
         const response = await client.delete({
@@ -229,12 +220,12 @@ describe('The Invoicing Service:', function() {
           subject: sample.subject,
         });
         logger.debug(response);
-        expect(
+        should(
           response.operationStatus?.code
-        ).toBe(200);
-        expect(
+        ).equal(200);
+        should(
           response.status!.every(item => item?.code === 200)
-        ).toBeTruthy();
+        ).True();
       },
       30000
     );

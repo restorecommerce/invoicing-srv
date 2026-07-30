@@ -1,4 +1,4 @@
-import { expect } from '@jest/globals';
+import should from 'should';
 import { RedisClientType, createClient as RedisCreateClient } from 'redis';
 import { GrpcMockServer } from '@alenon/grpc-mock-server';
 import { createServiceConfig } from '@restorecommerce/service-config';
@@ -33,7 +33,7 @@ export async function connectEvents(): Promise<Events> {
 
 export async function connectTopics(events: Events, resourceName: string): Promise<Topic> {
   const topic = cfg.get(`events:kafka:topics:${resourceName}:topic`);
-  expect(topic).not.toBeUndefined();
+  should.exist(topic);
   return await events.topic(topic);
 }
 

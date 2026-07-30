@@ -5,7 +5,8 @@
 *.js
 
 coverage/
-lib
+lib/
+dist/
 node_modules/
 npm-debug.log
 pid/
