@@ -6,10 +6,13 @@ docs/
 
 .project
 .settings
+.directory
+.vscode
 
 .git*
 
 *.log
+*.db
 *~
 
 buildImage.bash
