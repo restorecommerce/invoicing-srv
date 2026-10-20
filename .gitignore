@@ -24,3 +24,5 @@ pid/
 !triggerInvoices.js
 !triggerInvoice_job.js
 !jest.config.js
+
+output/*

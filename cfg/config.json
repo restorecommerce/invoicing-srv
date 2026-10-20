@@ -155,6 +155,7 @@
       "meta.created",
       "meta.modified",
       "timestamp",
+      "due_date",
       "from_date",
       "to_date",
       "sections.[0].positions.[0].from_date",
@@ -467,6 +468,13 @@
       },
       {
         "bodies": [{
+          "url": "file://./templates/invoice_print_header.hbs"
+        }],
+        "ordinal": 0,
+        "use_case": "INVOICE_PDF_HEADER"
+      },
+      {
+        "bodies": [{
           "url": "file://./templates/invoice_body.hbs"
         }],
         "layouts": [{
@@ -494,7 +502,7 @@
           }
         }],
         "ordinal": 2,
-        "use_case": "INVOICE_PDF"
+        "use_case": "INVOICE_PDF_FOOTER"
       },
       {
         "bodies": [{

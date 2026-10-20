@@ -30,7 +30,7 @@
       <td class="vclSpan-10p">{{t 'l10n.invoice.billingAddress'}}:</td>
       <td>
       {{#if invoice.recipient.address.business_address}}
-        {{invoice.recipient.business_address.name}}
+        {{invoice.recipient.address.business_address.name}}
       {{/if}}
       {{#if invoice.recipient.address.residential_address.mid_name}}
         {{t 'l10n.invoice.salutation.mid_name'
@@ -125,12 +125,19 @@
     {{/each}}
     {{#each invoice.total_amounts as | amount |}}
     <tr class="vclSumTableTotal">
-      <td colspan="4">{{t 'l10n.invoice.gross'}}:</td>
+      <td colspan="4">{{t 'l10n.invoice.net'}}:</td>
       <td colspan="2" class="vclAlignRight">{{nfc amount.net cc=amount.currency.code}}</td>
     </tr>
     {{#each amount.vats as | vat |}}
     <tr class="vclNoBorder">
-      <td colspan="4">+ {{t vat.tax_id}}:</td>
+      <td colspan="4">
+        +
+        {{#if vat.tax.rate includeZero=true}}
+          {{t 'l10n.invoice.vat'}} {{nf vat.tax.rate style="percent" maximumFractionDigits=2}}:
+        {{else}}
+          {{t vat.tax_id}}:
+        {{/if}}
+      </td>
       <td colspan="2" class="vclAlignRight">{{nfc vat.vat cc=amount.currency.code}}</td>
     </tr>
     {{/each}}
@@ -166,5 +173,8 @@
 </p>
 
 <p class="vclAlignCentered">
-  {{t 'l10n.invoice.paymentMethod'}}: {{invoice.payment_method}}
+  {{t 'l10n.invoice.paymentMethod'}}:
+  {{#each invoice.payment_hints}}
+    {{this}}{{#unless @last}}<br>{{/unless}}
+  {{/each}}
 </p>

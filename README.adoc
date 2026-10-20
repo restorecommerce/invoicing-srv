@@ -16,3 +16,6 @@ Part of link:https://github.com/restorecommerce[Restorecommerce].
 == Contributing
 
 Read more in link:{docdir}/CONTRIBUTING.md[CONTRIBUTING.md]
+
+For local testing and downloading an invoice PDF, see
+link:test/README.md[Running the existing tests and retrieving an invoice PDF].

@@ -14,6 +14,7 @@ import { type DatabaseProvider } from '@restorecommerce/chassis-srv';
 import { Topic } from '@restorecommerce/kafka-client';
 import {
   Invoice,
+  InvoiceExportFormat,
   InvoiceServiceImplementation,
   InvoiceListResponse,
   InvoiceList,
@@ -118,6 +119,8 @@ import {
   CurrencyServiceDefinition
 } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/currency.js';
 import { InvoiceNumberService } from './invoice_number_srv.js';
+import type { Invoice as ElectronicInvoice } from '@e-invoice-eu/core';
+import { generateInvoiceExport, invoiceValidationMessage, mapInvoiceToEInvoice, type InvoiceExportFile } from '../e-invoice.js';
 import {
   AccessControlledServiceBase,
   ClientRegister,
@@ -773,7 +776,7 @@ export class InvoiceService
           },
           {
             service: TaxServiceDefinition,
-            map_by_ids: (aggregation) => aggregation.products?.all.flatMap(
+            map_by_ids: (aggregation) => [].concat(aggregation.products?.all.flatMap(
               product => [].concat(
                 product.product?.tax_ids,
                 product.product?.physical?.variants?.flatMap(
@@ -786,7 +789,13 @@ export class InvoiceService
                   variant => variant.tax_ids
                 ),
               )
-            ),
+            ), invoice_list.export_format && invoice_list.export_format !== InvoiceExportFormat.PDF ? [
+              aggregation.items?.flatMap(i => [
+                i.total_amounts?.flatMap(a => a.vats?.map(v => v.tax_id)),
+                i.sections?.flatMap(s => s.positions?.flatMap(p => p.amount?.vats?.map(v => v.tax_id))),
+              ].flat(Infinity)),
+              aggregation.fulfillment_products?.all.flatMap(p => p.tax_ids),
+            ].flat(Infinity) : []),
             container: 'taxes',
             entity: 'Tax',
           },
@@ -814,6 +823,8 @@ export class InvoiceService
           {
             service: CurrencyServiceDefinition,
             map_by_ids: (aggregation) => [
+              invoice_list.export_format && invoice_list.export_format !== InvoiceExportFormat.PDF
+                ? aggregation.items?.flatMap(i => i.total_amounts?.map(a => a.currency_id)) : [],
               aggregation.items?.flatMap(
                 item => item.sections?.flatMap(
                   section => [
@@ -1282,6 +1293,11 @@ export class InvoiceService
     context?: CallContext,
   ): Promise<InvoiceListResponse> {
     try {
+      const exportFormat = request.export_format ?? InvoiceExportFormat.PDF;
+      if (![InvoiceExportFormat.PDF, InvoiceExportFormat.ZUGFERD_XML,
+        InvoiceExportFormat.ZUGFERD_PDF, InvoiceExportFormat.ZUGFERD_BOTH].includes(exportFormat)) {
+        return { items: [], operation_status: { code: 400, message: 'Unknown invoice export_format' } };
+      }
       if (!request.items?.length) {
         return {
           items: [],
@@ -1308,88 +1324,99 @@ export class InvoiceService
         aggregation => this.generateInvoiceNumbers(aggregation, context)
       );
 
-      const default_templates = await this.loadDefaultTemplates();
+      const default_templates = exportFormat === InvoiceExportFormat.PDF ? await this.loadDefaultTemplates() : undefined;
       const response = await Promise.all(aggregation.items.map(
         async (item) => {
-          const render_id = `invoice/pdf/${item!.id}`;
-          return await this.emitRenderRequest(
-            item,
-            aggregation,
-            render_id,
-            [
-              TemplateUseCase.INVOICE_PDF,
-              'INVOICE_PDF_BODY',
-              'INVOICE_PDF_HEADER',
-              'INVOICE_PDF_FOOTER'
-            ],
-            default_templates,
-            request.subject,
-          ).then(
-            async (): Promise<RenderResult> => ({
-              payload: {
-                id: item.id,
-                content: await this.awaits_render_result.await(
-                  render_id, this.kafka_timeout
-                ).then(
-                  c => ({
-                    header: c.filter(
-                      c => [
-                        'INVOICE_PDF_HEADER'
-                      ].includes(c.id)
-                    ).map(
-                      c => c.body
-                    ).join(''),
-                    body: c.filter(
-                      c => [
-                        TemplateUseCase.INVOICE_PDF,
-                        'INVOICE_PDF_BODY'
-                      ].includes(c.id)
-                    ).map(
-                      c => c.body
-                    ).join(''),
-                    footer: c.filter(
-                      c => [
-                        'INVOICE_PDF_FOOTER'
-                      ].includes(c.id)
-                    ).map(
-                      c => c.body
-                    ).join('')
-                  })
-                ),
+          try {
+            const mapped = exportFormat !== InvoiceExportFormat.PDF ? mapInvoiceToEInvoice(item, aggregation) : undefined;
+            if (exportFormat === InvoiceExportFormat.ZUGFERD_XML) {
+              const shop = aggregation.shops.get(item.shop_id);
+              const setting = this.resolveSettings(aggregation.settings.get(shop.setting_id));
+              return await this.storageInvoiceExport(item, await generateInvoiceExport(mapped, exportFormat),
+                setting, this.tech_user ?? request.subject);
+            }
+            const templates = default_templates ?? await this.loadDefaultTemplates();
+            const render_id = `invoice/pdf/${item!.id}`;
+            return await this.emitRenderRequest(
+              item,
+              aggregation,
+              render_id,
+              [
+                TemplateUseCase.INVOICE_PDF,
+                'INVOICE_PDF_BODY',
+                'INVOICE_PDF_HEADER',
+                'INVOICE_PDF_FOOTER'
+              ],
+              templates,
+              request.subject,
+            ).then(
+              async (): Promise<RenderResult> => ({
+                payload: {
+                  id: item.id,
+                  content: await this.awaits_render_result.await(
+                    render_id, this.kafka_timeout
+                  ).then(
+                    c => ({
+                      header: c.filter(
+                        c => [
+                          'INVOICE_PDF_HEADER'
+                        ].includes(c.id)
+                      ).map(
+                        c => c.body
+                      ).join(''),
+                      body: c.filter(
+                        c => [
+                          TemplateUseCase.INVOICE_PDF,
+                          'INVOICE_PDF_BODY'
+                        ].includes(c.id)
+                      ).map(
+                        c => c.body
+                      ).join(''),
+                      footer: c.filter(
+                        c => [
+                          'INVOICE_PDF_FOOTER'
+                        ].includes(c.id)
+                      ).map(
+                        c => c.body
+                      ).join('')
+                    })
+                  ),
+                },
+                status: this.statusCodes.SUCCESS,
+              }),
+            ).then(
+              response => {
+                if (response.status?.code === 200) {
+                  const shop = aggregation.shops.get(item.shop_id);
+                  const setting = this.resolveSettings(
+                    aggregation.settings.get(
+                      shop.setting_id
+                    )
+                  );
+                  return this.renderPdf(
+                    item,
+                    response.payload.content,
+                    setting,
+                    this.tech_user ?? request.subject,
+                    context,
+                    mapped ? { format: exportFormat, mapped } : undefined,
+                  );
+                }
+                else {
+                  const invoice = response_map.get(item.id);
+                  invoice.status = response.status ?? this.createStatusCode(
+                    item.id,
+                    'Invoice',
+                    this.statusCodes.PDF_RENDER_FAILED,
+                    item.id
+                  );
+                  return invoice;
+                }
               },
-              status: this.statusCodes.SUCCESS,
-            }),
-          ).then(
-            response => {
-              if (response.status?.code === 200) {
-                const shop = aggregation.shops.get(item.shop_id);
-                const setting = this.resolveSettings(
-                  aggregation.settings.get(
-                    shop.setting_id
-                  )
-                );
-                return this.renderPdf(
-                  item,
-                  response.payload.content,
-                  setting,
-                  this.tech_user ?? request.subject,
-                  context,
-                );
-              }
-              else {
-                const invoice = response_map.get(item.id);
-                invoice.status = response.status ?? this.createStatusCode(
-                  item.id,
-                  'Invoice',
-                  this.statusCodes.PDF_RENDER_FAILED,
-                  item.id
-                );
-                return invoice;
-              }
-            },
-          ).catch(
-            (err: any) => this.catchStatusError<RenderResult>(err, { payload: item })
-          );
+            );
+          } catch (err) {
+            return this.catchRenderError(err, item);
+          }
         }
       )).then(
         async items => {
@@ -1772,6 +1799,44 @@ export class InvoiceService
     return invoice;
   }
 
+  protected catchRenderError(error: unknown, invoice: Invoice): InvoiceResponse {
+    const message = invoiceValidationMessage(error);
+    return this.catchStatusError(message ? { code: 400, message } : error, { payload: invoice });
+  }
+
+  protected async storageInvoiceExport(
+    invoice: Invoice,
+    files: InvoiceExportFile[],
+    setting: ResolvedSetting,
+    subject?: Subject,
+  ): Promise<InvoiceResponse> {
+    // Publish document descriptors only after every requested file has been stored.
+    const result: Invoice = { ...invoice, documents: [...(invoice.documents ?? [])] };
+    const exportId = makeID();
+    for (const file of files) {
+      const documentId = makeID();
+      const filename = `${invoice.invoice_number}.${file.extension}`;
+      const key = [invoice.shop_id, invoice.id, exportId, filename].join(setting.shop_bucket_key_delimiter);
+      const buffer = Buffer.from(file.data);
+      const stream = Readable.from([{ bucket: setting.shop_pdf_bucket, key, object: buffer,
+        meta: invoice.meta, subject,
+        options: { ...setting.shop_pdf_bucket_options, content_type: file.content_type },
+      }]);
+      try {
+        const response = await this.ostorage_service.put(stream);
+        if (response.operation_status?.code !== 200) throw response.operation_status ?? new Error('Invoice export storage failed');
+        if (response.response?.status?.code !== 200) throw response.response?.status ?? new Error('Invoice export storage failed');
+        const object = response.response.payload;
+        if (!object?.url) throw new Error('Invoice export storage returned no document URL');
+        result.documents.push({ id: documentId, url: object.url, caption: basename(key),
+          filename: basename(key), bytes: buffer.byteLength, content_type: file.content_type });
+      } finally {
+        stream.destroy();
+      }
+    }
+    return { payload: result, status: this.statusCodes.SUCCESS };
+  }
+
   protected async renderPdf(
     invoice: Invoice,
     content: {
@@ -1782,10 +1847,11 @@ export class InvoiceService
     setting: ResolvedSetting,
     subject?: Subject,
     context?: any,
+    exportOptions?: { format: InvoiceExportFormat; mapped: ElectronicInvoice },
   ): Promise<InvoiceResponse> {
     const {header, body, footer } = content;
     try {
-      if (!setting.shop_html_bucket_disabled) {
+      if (!exportOptions && !setting.shop_html_bucket_disabled) {
         await this.storageHtmlRenderResponse(
           invoice,
           [header, body, footer].filter(Boolean).join(),
@@ -1852,6 +1918,15 @@ export class InvoiceService
           if (resp.operation_status?.code !== 200) {
             throw resp.operation_status;
           }
+          else if (exportOptions) {
+            const sourcePdf = resp.combined?.payload?.pdf?.data
+              ?? (resp.individual?.RenderingResponse?.length === 1 ? resp.individual.RenderingResponse[0]?.payload?.pdf?.data : undefined);
+            const renderStatus = resp.combined?.status ?? resp.individual?.RenderingResponse?.[0]?.status;
+            if (renderStatus?.code && renderStatus.code !== 200) throw renderStatus;
+            if (!sourcePdf?.length) throw new Error('PDF renderer did not return a single source PDF for ZUGFeRD export');
+            const files = await generateInvoiceExport(exportOptions.mapped, exportOptions.format, sourcePdf);
+            invoice = (await this.storageInvoiceExport(invoice, files, setting, subject)).payload;
+          }
           else if (resp.combined?.payload?.upload_result) {
             const filename = basename(key);
             invoice.documents ??= [];
@@ -1899,7 +1974,7 @@ export class InvoiceService
       };
     }
     catch (err) {
-      return this.catchStatusError(err, { payload: invoice });
+      return this.catchRenderError(err, invoice);
     }
   }
 

@@ -1,3 +1,5 @@
+import { apiExportRecords } from './fixtures/api-export.js';
+import type { Meta } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/meta.js';
 import {
   Response,
   Response_Decision,
@@ -7,6 +9,7 @@ import {
   InvoiceList,
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/invoice.js';
 import { 
+  Product,
   ProductListResponse,
   ProductResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/product.js';
@@ -15,6 +18,7 @@ import {
   ManufacturerResponse,
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/manufacturer.js';
 import {
+  Organization,
   OrganizationListResponse,
   OrganizationResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/organization.js';
@@ -32,6 +36,7 @@ import {
   CountryResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/country.js';
 import {
+  Tax,
   TaxListResponse,
   TaxResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/tax.js';
@@ -51,10 +56,12 @@ import {
   UserType
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/user.js';
 import {
+  Shop,
   ShopListResponse,
   ShopResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/shop.js';
 import {
+  Customer,
   CustomerListResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/customer.js';
 import {
@@ -73,6 +80,7 @@ import {
   FulfillmentCourierListResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/fulfillment_courier.js';
 import {
+  FulfillmentProduct,
   FulfillmentProductListResponse
 } from '@restorecommerce/rc-grpc-clients/dist/generated/io/restorecommerce/fulfillment_product.js';
 import {
@@ -93,7 +101,10 @@ const status: Status = {
   message: 'OK',
 }
 
-const meta = {
+const exportMocks = (records: ReadonlyMap<string, unknown>, codec: { fromJSON(value: unknown): any }) =>
+  [...records.values()].map(record => ({ payload: codec.fromJSON(record), status }));
+
+const meta: Meta = {
   modifiedBy: 'SYSTEM',
   owners: [
     {
@@ -263,8 +274,8 @@ const products: ProductResponse[] = [
               description: 'This is a physical product in blue',
               price: {
                 currencyId: 'EUR',
-                regularPrice: 9.99,
-                salePrice: 8.99,
+                regularPrice: 11.89,
+                salePrice: 10.70,
                 sale: false,
               },
               images: [],
@@ -425,14 +436,14 @@ const validInvoices: { [key: string]: InvoiceList } = {
                 quantity: 1,
                 unitPrice: {
                   currencyId: 'EUR',
-                  regularPrice: 9.99,
-                  salePrice: 8.99,
+                  regularPrice: 11.89,
+                  salePrice: 10.70,
                   sale: true,
                 },
                 amount: {
                   currencyId: 'EUR',
-                  gross: 8.99,
-                  net: 10.70,
+                  gross: 10.70,
+                  net: 8.99,
                   vats: [
                     {
                       taxId: 'tax_1',
@@ -444,8 +455,8 @@ const validInvoices: { [key: string]: InvoiceList } = {
             ],
             amounts: [{
               currencyId: 'EUR',
-              gross: 8.99,
-              net: 10.70,
+              gross: 10.70,
+              net: 8.99,
               vats: [
                 {
                   taxId: 'tax_1',
@@ -457,8 +468,8 @@ const validInvoices: { [key: string]: InvoiceList } = {
         ],
         totalAmounts: [{
           currencyId: 'EUR',
-          gross: 8.99,
-          net: 10.70,
+          gross: 10.70,
+          net: 8.99,
           vats: [
             {
               taxId: 'tax_1',
@@ -1042,8 +1053,8 @@ export const rules: { [key: string]: any } = {
       call: any,
       callback: (error: any, response: ShopListResponse) => void,
     ) => callback(null, {
-      items: shops,
-      totalCount: shops.length,
+      items: [...shops, ...exportMocks(apiExportRecords.shops, Shop)],
+      totalCount: shops.length + apiExportRecords.shops.size,
       operationStatus
     }),
   },
@@ -1052,8 +1063,8 @@ export const rules: { [key: string]: any } = {
       call: any,
       callback: (error: any, response: OrganizationListResponse) => void,
     ) => callback(null, {
-      items: organizations,
-      totalCount: organizations.length,
+      items: [...organizations, ...exportMocks(apiExportRecords.organizations, Organization)],
+      totalCount: organizations.length + apiExportRecords.organizations.size,
       operationStatus,
     })
   },
@@ -1074,9 +1085,10 @@ export const rules: { [key: string]: any } = {
             },
           },
           status,
-        }
+        },
+        ...exportMocks(apiExportRecords.customers, Customer),
       ],
-      totalCount: 1,
+      totalCount: 1 + apiExportRecords.customers.size,
       operationStatus
     }),
   },
@@ -1121,8 +1133,8 @@ export const rules: { [key: string]: any } = {
       call: any,
       callback: (error: any, response: ProductListResponse) => void,
     ) => callback(null, {
-      items: products,
-      totalCount: products.length,
+      items: [...products, ...exportMocks(apiExportRecords.products, Product)],
+      totalCount: products.length + apiExportRecords.products.size,
       operationStatus,
     }),
   },
@@ -1141,8 +1153,8 @@ export const rules: { [key: string]: any } = {
       call: any,
       callback: (error: any, response: TaxListResponse) => void,
     )=> callback(null, {
-      items: taxes,
-      totalCount: taxes.length,
+      items: [...taxes, ...exportMocks(apiExportRecords.taxes, Tax)],
+      totalCount: taxes.length + apiExportRecords.taxes.size,
       operationStatus
     }),
   },
@@ -1187,7 +1199,11 @@ export const rules: { [key: string]: any } = {
     read: (
       call: any,
       callback: (error: any, response: FulfillmentProductListResponse) => void,
-    ) => callback(null, fulfillmentProducts),
+    ) => callback(null, {
+      ...fulfillmentProducts,
+      items: [...(fulfillmentProducts.items ?? []), ...exportMocks(apiExportRecords.fulfillment_products, FulfillmentProduct)],
+      totalCount: (fulfillmentProducts.items?.length ?? 0) + apiExportRecords.fulfillment_products.size,
+    }),
   },
   currency: {
     read: (
