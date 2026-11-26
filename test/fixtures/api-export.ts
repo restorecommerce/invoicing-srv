@@ -16,7 +16,7 @@ export function createApiExportInvoice(id: string): ClientInvoice {
 /** Different quantities/prices and VAT rates expose swapped lines and net/gross errors. */
 export function createApiConsistencyInvoice(id: string): ClientInvoice {
   const invoice = createApiExportInvoice(id);
-  invoice.sections[0].positions.push({
+  invoice.sections![0]!.positions!.push({
     id: '002', manualItem: { name: 'Consulting & Support' }, quantity: 2, quantityUnitCode: 'HUR',
     unitPrice: { currencyId: 'EUR', regularPrice: 10.70, sale: false },
     amount: { currencyId: 'EUR', net: 20, gross: 21.40, vats: [{ taxId: 'vat-7', vat: 1.40 }] },
@@ -27,6 +27,6 @@ export function createApiConsistencyInvoice(id: string): ClientInvoice {
   });
   invoice.totalAmounts = [{ currencyId: 'EUR', net: 33.99, gross: 38.05,
     vats: [{ taxId: 'vat-19', vat: 2.66 }, { taxId: 'vat-7', vat: 1.40 }] }];
-  invoice.sections[0].amounts = structuredClone(invoice.totalAmounts);
+  invoice.sections![0].amounts = structuredClone(invoice.totalAmounts);
   return invoice;
 }

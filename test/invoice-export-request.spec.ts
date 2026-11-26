@@ -16,7 +16,7 @@ describe('Invoice Render request compatibility', () => {
     const bytes = ClientInvoiceList.encode(request).finish();
 
     // Captured from the published 5.2.3 client before adding export_format.
-    expect(Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')).toBe('0a080a066c65676163791001');
+    expect(Array.from(bytes, (byte: Buffer) => byte!.toString('hex').padStart(2, '0')).join('')).toBe('0a080a066c65676163791001');
     expect(ServerInvoiceList.decode(bytes)).toEqual({
       items: [{ id: 'legacy' }],
       total_count: 1,
@@ -54,9 +54,9 @@ describe('Invoice Render request compatibility', () => {
       }] }],
     }] });
     const server = ServerInvoiceList.decode(ClientInvoiceList.encode(request).finish());
-    expect(server.items[0].due_date).toEqual(request.items[0].dueDate);
-    expect(server.items[0].seller_vat_id).toBe('DE123456789');
-    expect(server.items[0].sections[0].positions[0].quantity_unit_code).toBe('C62');
+    expect(server!.items![0]!.due_date).toEqual(request!.items![0]!.dueDate);
+    expect(server!.items![0]!.seller_vat_id).toBe('DE123456789');
+    expect(server!.items![0]!.sections![0]!.positions![0]!.quantity_unit_code).toBe('C62');
     expect(ClientInvoiceList.decode(ServerInvoiceList.encode(server).finish())).toEqual(request);
   });
 });
