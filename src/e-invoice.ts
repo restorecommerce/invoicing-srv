@@ -19,6 +19,7 @@ import type { Currency } from '@restorecommerce/rc-grpc-clients/dist/generated-s
 import type { Tax } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/tax.js';
 import type { Product } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/product.js';
 import type { FulfillmentProduct } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/fulfillment_product.js';
+import { Logger } from '@restorecommerce/logger';
 
 type XmlInvoice = ElectronicInvoice['ubl:Invoice'];
 type INVOICELINE = XmlInvoice['cac:InvoiceLine'][number];
@@ -423,8 +424,15 @@ export async function generateInvoiceExport(
   mapped: ElectronicInvoice,
   format: InvoiceExportFormat,
   sourcePdf?: Uint8Array,
+  logger?: Logger,
 ): Promise<InvoiceExportFile[]> {
-  const service = new InvoiceService({ log: () => {}, warn: () => {}, error: () => {} });
+  const service = new InvoiceService(
+    {
+      log: () => logger?.verbose,
+      warn: () => logger?.warn,
+      error: () => logger?.error,
+    }
+  );
   if (format === InvoiceExportFormat.ZUGFERD_XML) {
     const xml = await service.generate(mapped, { format: 'CII', lang: 'en' });
     if (typeof xml !== 'string') throw new Error('Invoice XML generation returned a non-XML result');
@@ -447,12 +455,13 @@ export async function generateInvoiceExport(
 }
 
 /** Converts mapper and library input-validation failures to a useful API message. */
-export function invoiceValidationMessage(error: unknown): string | undefined {
+export function invoiceValidationMessage(error: any): string | undefined {
   if (error instanceof InvoiceMappingError) return error.message;
   const validation = error as { validation?: boolean; errors?: { instancePath?: string; message?: string }[] };
   if (validation?.validation && Array.isArray(validation.errors)) {
-    return 'Cannot export e-invoice: ' + validation.errors.map(e =>
-      (e.instancePath || 'invoice') + ': ' + e.message).join('; ');
+    return 'Cannot export e-invoice: ' + validation.errors.map(
+      e => `${(e.instancePath || 'invoice')}: ${e.message}`
+    ).join('; ');
   }
   return undefined;
 }

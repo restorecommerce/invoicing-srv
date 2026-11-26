@@ -1,7 +1,7 @@
 import type { Invoice } from '@restorecommerce/rc-grpc-clients/dist/generated-server/io/restorecommerce/invoice.js';
 import type { InvoiceExportRecords } from '../../src/e-invoice.js';
 
-const recordsById = <T extends { id?: string }>(items: T[]) => new Map(items.map(item => [item.id, item]));
+const recordsById = <T extends { id: string }>(items: T[]) => new Map(items.map(item => [item.id, item]));
 
 /** Fictional, complete export data, kept separate from the minimal legacy PDF fixture. */
 export function createEInvoiceFixture(): { invoice: Invoice; records: InvoiceExportRecords } {

@@ -283,7 +283,7 @@ export class InvoiceService
     protected readonly notificationTopic: Topic,
     protected readonly db: DatabaseProvider,
     protected readonly redis: RedisClientType,
-    protected readonly cfg: ServiceConfig,
+    public readonly cfg: ServiceConfig,
     logger: Logger,
     protected readonly invoice_number_srv = new InvoiceNumberService(
       invoicingTopic,
@@ -776,26 +776,39 @@ export class InvoiceService
           },
           {
             service: TaxServiceDefinition,
-            map_by_ids: (aggregation) => [].concat(aggregation.products?.all.flatMap(
-              product => [].concat(
-                product.product?.tax_ids,
-                product.product?.physical?.variants?.flatMap(
-                  variant => variant.tax_ids
-                ),
-                product.product?.virtual?.variants?.flatMap(
-                  variant => variant.tax_ids
-                ),
-                product.product?.service?.variants?.flatMap(
-                  variant => variant.tax_ids
-                ),
-              )
-            ), invoice_list.export_format && invoice_list.export_format !== InvoiceExportFormat.PDF ? [
-              aggregation.items?.flatMap(i => [
-                i.total_amounts?.flatMap(a => a.vats?.map(v => v.tax_id)),
-                i.sections?.flatMap(s => s.positions?.flatMap(p => p.amount?.vats?.map(v => v.tax_id))),
-              ].flat(Infinity)),
-              aggregation.fulfillment_products?.all.flatMap(p => p.tax_ids),
-            ].flat(Infinity) : []),
+            map_by_ids: (aggregation) => [].concat(
+              aggregation.products?.all.flatMap(
+                product => [].concat(
+                  product.product?.tax_ids,
+                  product.product?.physical?.variants?.flatMap(
+                    variant => variant.tax_ids
+                  ),
+                  product.product?.virtual?.variants?.flatMap(
+                    variant => variant.tax_ids
+                  ),
+                  product.product?.service?.variants?.flatMap(
+                    variant => variant.tax_ids
+                  ),
+                )
+              ),
+              aggregation.items?.map(
+                i => [
+                  i.total_amounts?.map(
+                    a => a.vats?.map(v => v.tax_id)
+                  ),
+                  i.sections?.map(
+                    s => s.positions?.map(
+                      p => p.amount?.vats?.map(
+                        v => v.tax_id
+                      )
+                    )
+                  )
+                ]
+              ).flat(Infinity),
+              aggregation.fulfillment_products?.all.flatMap(
+                p => p.tax_ids
+              ),
+            ),
             container: 'taxes',
             entity: 'Tax',
           },
@@ -823,8 +836,9 @@ export class InvoiceService
           {
             service: CurrencyServiceDefinition,
             map_by_ids: (aggregation) => [
-              invoice_list.export_format && invoice_list.export_format !== InvoiceExportFormat.PDF
-                ? aggregation.items?.flatMap(i => i.total_amounts?.map(a => a.currency_id)) : [],
+              aggregation.items?.flatMap(
+                i => i.total_amounts?.map(a => a.currency_id)
+              ),
               aggregation.items?.flatMap(
                 item => item.sections?.flatMap(
                   section => [
@@ -1324,7 +1338,6 @@ export class InvoiceService
         aggregation => this.generateInvoiceNumbers(aggregation, context)
       );
 
-      const default_templates = exportFormat === InvoiceExportFormat.PDF ? await this.loadDefaultTemplates() : undefined;
       const response = await Promise.all(aggregation.items.map(
         async (item) => {
           try {
@@ -1335,7 +1348,7 @@ export class InvoiceService
               return await this.storageInvoiceExport(item, await generateInvoiceExport(mapped, exportFormat),
                 setting, this.tech_user ?? request.subject);
             }
-            const templates = default_templates ?? await this.loadDefaultTemplates();
+            const default_templates = await this.loadDefaultTemplates();
             const render_id = `invoice/pdf/${item!.id}`;
             return await this.emitRenderRequest(
               item,
@@ -1347,7 +1360,7 @@ export class InvoiceService
                 'INVOICE_PDF_HEADER',
                 'INVOICE_PDF_FOOTER'
               ],
-              templates,
+              default_templates,
               request.subject,
             ).then(
               async (): Promise<RenderResult> => ({
@@ -1638,6 +1651,7 @@ export class InvoiceService
     const buffer = Buffer.from(body);
     const stream = Readable.from(buffer);
     try {
+      const secret = makeID();
       const document_id = makeID();
       const transformer = new Transform({
         objectMode: true,
@@ -1648,6 +1662,7 @@ export class InvoiceService
               invoice.shop_id,
               invoice.id,
               document_id,
+              secret,
               `${invoice.invoice_number}.html`
             ].join(setting.shop_bucket_key_delimiter),
             object: chunk,
@@ -1723,11 +1738,13 @@ export class InvoiceService
   ) {
     const stream = Readable.from(buffer);
     try {
+      const secret = makeID();
       const document_id = makeID();
       const key = [
         invoice.shop_id,
         invoice.id,
         document_id,
+        secret,
         `${invoice.invoice_number}.pdf`
       ].join(setting.shop_bucket_key_delimiter);
       const transformer = new Transform({
@@ -1799,9 +1816,12 @@ export class InvoiceService
     return invoice;
   }
 
-  protected catchRenderError(error: unknown, invoice: Invoice): InvoiceResponse {
+  protected catchRenderError(error: any, invoice: Invoice): InvoiceResponse {
     const message = invoiceValidationMessage(error);
-    return this.catchStatusError(message ? { code: 400, message } : error, { payload: invoice });
+    return this.catchStatusError(
+      message ? { code: 400, message } : error,
+      { payload: invoice }
+    );
   }
 
   protected async storageInvoiceExport(
@@ -1812,15 +1832,28 @@ export class InvoiceService
   ): Promise<InvoiceResponse> {
     // Publish document descriptors only after every requested file has been stored.
     const result: Invoice = { ...invoice, documents: [...(invoice.documents ?? [])] };
-    const exportId = makeID();
     for (const file of files) {
+      const secret = makeID();
       const documentId = makeID();
       const filename = `${invoice.invoice_number}.${file.extension}`;
-      const key = [invoice.shop_id, invoice.id, exportId, filename].join(setting.shop_bucket_key_delimiter);
+      const key = [
+        invoice.shop_id,
+        invoice.id,
+        documentId,
+        secret,
+        filename
+      ].join(setting.shop_bucket_key_delimiter);
       const buffer = Buffer.from(file.data);
-      const stream = Readable.from([{ bucket: setting.shop_pdf_bucket, key, object: buffer,
-        meta: invoice.meta, subject,
-        options: { ...setting.shop_pdf_bucket_options, content_type: file.content_type },
+      const stream = Readable.from([{
+        bucket: setting.shop_pdf_bucket,
+        key,
+        object: buffer,
+        meta: invoice.meta,
+        subject,
+        options: {
+          ...setting.shop_pdf_bucket_options,
+          content_type: file.content_type
+        },
       }]);
       try {
         const response = await this.ostorage_service.put(stream);
@@ -1828,8 +1861,14 @@ export class InvoiceService
         if (response.response?.status?.code !== 200) throw response.response?.status ?? new Error('Invoice export storage failed');
         const object = response.response.payload;
         if (!object?.url) throw new Error('Invoice export storage returned no document URL');
-        result.documents.push({ id: documentId, url: object.url, caption: basename(key),
-          filename: basename(key), bytes: buffer.byteLength, content_type: file.content_type });
+        result.documents.push({
+          id: documentId,
+          url: object.url,
+          caption: basename(key),
+          filename: basename(key),
+          bytes: buffer.byteLength,
+          content_type: file.content_type
+        });
       } finally {
         stream.destroy();
       }
@@ -1849,7 +1888,7 @@ export class InvoiceService
     context?: any,
     exportOptions?: { format: InvoiceExportFormat; mapped: ElectronicInvoice },
   ): Promise<InvoiceResponse> {
-    const {header, body, footer } = content;
+    const { header, body, footer } = content;
     try {
       if (!exportOptions && !setting.shop_html_bucket_disabled) {
         await this.storageHtmlRenderResponse(
@@ -1861,13 +1900,14 @@ export class InvoiceService
         );
       }
 
+      const secret = makeID();
       const document_id = makeID();
-      const timestamp = new Date().toISOString();
       const bucket = setting.shop_pdf_bucket;
       const key = [
         invoice.shop_id,
         invoice.id,
         document_id,
+        secret,
         `${invoice.invoice_number}.pdf`
       ].join(setting.shop_bucket_key_delimiter);
       await this.pdf_rendering_service.render({
@@ -1920,18 +1960,29 @@ export class InvoiceService
           }
           else if (exportOptions) {
             const sourcePdf = resp.combined?.payload?.pdf?.data
-              ?? (resp.individual?.RenderingResponse?.length === 1 ? resp.individual.RenderingResponse[0]?.payload?.pdf?.data : undefined);
+              ?? (
+                resp.individual?.RenderingResponse?.length === 1
+                && resp.individual.RenderingResponse[0]?.payload?.pdf?.data
+              );
             const renderStatus = resp.combined?.status ?? resp.individual?.RenderingResponse?.[0]?.status;
-            if (renderStatus?.code && renderStatus.code !== 200) throw renderStatus;
-            if (!sourcePdf?.length) throw new Error('PDF renderer did not return a single source PDF for ZUGFeRD export');
-            const files = await generateInvoiceExport(exportOptions.mapped, exportOptions.format, sourcePdf);
+            if (renderStatus?.code !== 200) {
+              throw renderStatus;
+            }
+            if (!sourcePdf?.length) {
+              throw new Error('PDF renderer did not return a single source PDF for ZUGFeRD export');
+            }
+            const files = await generateInvoiceExport(
+              exportOptions.mapped,
+              exportOptions.format,
+              sourcePdf
+            );
             invoice = (await this.storageInvoiceExport(invoice, files, setting, subject)).payload;
           }
           else if (resp.combined?.payload?.upload_result) {
             const filename = basename(key);
             invoice.documents ??= [];
             invoice.documents.push({
-              id: timestamp,
+              id: document_id,
               url: [
                 //setting.shop_bucket_endpoint,
                 '/',
